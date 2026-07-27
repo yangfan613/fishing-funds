@@ -9,7 +9,7 @@ const store = new Store({
   name: 'funds-data',
   defaults: {
     funds: [],
-    groups: ['默认分组'],   // 分组列表
+    groups: ['默认分组'],
     settings: {
       autoUpdate: true,
       morningStart: '09:30',
@@ -24,6 +24,7 @@ const store = new Store({
 let mainWindow = null;
 let tray = null;
 
+// ---------- 窗口创建 ----------
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 820,
@@ -40,16 +41,19 @@ function createWindow() {
   });
   mainWindow.loadFile('index.html');
   Menu.setApplicationMenu(null);
+
+  // 关闭按钮 → 隐藏窗口（不退出）
   mainWindow.on('close', (e) => {
     e.preventDefault();
     mainWindow.hide();
   });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// ---------- 托盘图标 ----------
+// ---------- 托盘图标（黑色方块 + 白色“估”字） ----------
 function createTrayIcon() {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
@@ -64,8 +68,23 @@ function createTray() {
   const icon = createTrayIcon();
   tray = new Tray(icon);
   const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { if (mainWindow) { mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show(); } else { createWindow(); mainWindow.show(); } } },
-    { label: '退出', click: () => { app.quit(); } }
+    {
+      label: '显示主窗口',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
+        } else {
+          createWindow();
+          mainWindow.show();
+        }
+      }
+    },
+    {
+      label: '退出',
+      click: () => {
+        app.exit(0); // 强制退出
+      }
+    }
   ]);
   tray.setToolTip('基金估值速查');
   tray.setContextMenu(contextMenu);
@@ -87,7 +106,10 @@ function applyMenuBarSetting() {
       if (!tray) createTray();
     } else {
       app.dock.show();
-      if (tray) { tray.destroy(); tray = null; }
+      if (tray) {
+        tray.destroy();
+        tray = null;
+      }
     }
   }
 }
@@ -104,7 +126,9 @@ ipcMain.handle('save-settings', (event, settings) => {
   return true;
 });
 
-// ---------- 数据源（天天、腾讯、新浪）----------
+// ---------- 数据源函数 ----------
+
+// 1. 天天基金（JSONP）
 async function fetchFromTiantian(code) {
   const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
   const response = await axios.get(url, {
@@ -118,7 +142,7 @@ async function fetchFromTiantian(code) {
   return {
     code: data.fundcode,
     name: data.name,
-    nav: parseFloat(data.nav),
+    nav: parseFloat(data.dwjz || data.nav || 0),
     gsz: parseFloat(data.gsz),
     gszzl: parseFloat(data.gszzl),
     gztime: data.gztime,
@@ -126,6 +150,7 @@ async function fetchFromTiantian(code) {
   };
 }
 
+// 2. 腾讯证券（JSON）
 async function fetchFromTencent(code) {
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fund/fundInfo?code=jj${code}`;
   const response = await axios.get(url, {
@@ -148,6 +173,7 @@ async function fetchFromTencent(code) {
   };
 }
 
+// 3. 新浪基金（CSV，GBK）
 async function fetchFromSina(code) {
   const url = `https://hq.sinajs.cn/list=f_${code}`;
   const response = await axios.get(url, {
@@ -167,7 +193,7 @@ async function fetchFromSina(code) {
   return {
     code: code,
     name: name,
-    nav: gsz,
+    nav: gsz, // 新浪无昨日净值，用估算代替（仅用于显示）
     gsz: gsz,
     gszzl: gszzl,
     gztime: gztime,
@@ -186,7 +212,9 @@ async function fetchFundValue(code) {
   for (const source of SOURCES) {
     try {
       const result = await source.fetch(code);
-      if (!result.gsz || isNaN(result.gsz)) throw new Error(`数据无效: gsz=${result.gsz}`);
+      if (!result.gsz || isNaN(result.gsz)) {
+        throw new Error(`数据无效: gsz=${result.gsz}`);
+      }
       console.log(`✅ 基金 ${code} 使用源: ${result.source}`);
       return result;
     } catch (error) {
@@ -197,6 +225,7 @@ async function fetchFundValue(code) {
   throw new Error(`所有数据源均失败: ${lastError?.message || '未知错误'}`);
 }
 
+// ---------- IPC 处理 ----------
 ipcMain.handle('fetch-fund', async (event, code) => {
   try {
     const data = await fetchFundValue(code);
@@ -210,6 +239,7 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   const promises = fundList.map(async (item) => {
     try {
       const val = await fetchFundValue(item.code);
+      // 更新存储中的基金名称
       const currentFunds = store.get('funds', []);
       const idx = currentFunds.findIndex(f => f.code === item.code);
       if (idx !== -1 && currentFunds[idx].name !== val.name) {
@@ -237,17 +267,28 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   return Promise.all(promises);
 });
 
-// ---------- 导入导出 ----------
+// ---------- 导入导出（含分组） ----------
 ipcMain.handle('export-funds', async () => {
   const funds = store.get('funds', []);
-  if (!funds.length) return { success: false, message: '没有基金可导出' };
-  const exportData = funds.map(f => ({ code: f.code, name: f.name || '', cyfe: f.shares, cbj: f.costPrice, group: f.group || '默认分组', zdfRange: 1 }));
+  if (!funds.length) {
+    return { success: false, message: '没有基金可导出' };
+  }
+  const exportData = funds.map(f => ({
+    code: f.code,
+    name: f.name || '',
+    cyfe: f.shares,
+    cbj: f.costPrice,
+    group: f.group || '默认分组',
+    zdfRange: 1
+  }));
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
     title: '导出基金列表',
     defaultPath: 'funds_export.json',
     filters: [{ name: 'JSON', extensions: ['json'] }]
   });
-  if (canceled || !filePath) return { success: false, message: '取消导出' };
+  if (canceled || !filePath) {
+    return { success: false, message: '取消导出' };
+  }
   try {
     fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2), 'utf8');
     return { success: true, message: `导出成功: ${path.basename(filePath)}` };
@@ -262,35 +303,48 @@ ipcMain.handle('import-funds', async () => {
     filters: [{ name: 'JSON', extensions: ['json'] }],
     properties: ['openFile']
   });
-  if (canceled || filePaths.length === 0) return { success: false, message: '取消导入' };
+  if (canceled || filePaths.length === 0) {
+    return { success: false, message: '取消导入' };
+  }
   try {
     const content = fs.readFileSync(filePaths[0], 'utf8');
     const imported = JSON.parse(content);
-    if (!Array.isArray(imported)) return { success: false, message: '文件格式错误：应为数组' };
+    if (!Array.isArray(imported)) {
+      return { success: false, message: '文件格式错误：应为数组' };
+    }
     const currentFunds = store.get('funds', []);
     const map = new Map();
     currentFunds.forEach(f => map.set(f.code, f));
+    // 同时合并分组
+    const allGroups = new Set(store.get('groups', ['默认分组']));
     imported.forEach(item => {
       if (item.code) {
+        const group = item.group || '默认分组';
+        allGroups.add(group);
         map.set(item.code, {
           code: item.code,
           name: item.name || '',
           costPrice: item.cbj || item.costPrice || 0,
           shares: item.cyfe || item.shares || 0,
-          group: item.group || '默认分组'
+          group: group
         });
       }
     });
     const merged = Array.from(map.values());
     store.set('funds', merged);
+    store.set('groups', Array.from(allGroups));
     return { success: true, message: `导入成功，共 ${merged.length} 条记录` };
   } catch (err) {
     return { success: false, message: err.message };
   }
 });
 
+// ---------- 应用启动 ----------
 app.whenReady().then(() => {
   createWindow();
   applyMenuBarSetting();
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  // 在 macOS 上，通常不退出，但这里保持默认行为（菜单栏退出已用 app.exit）
+  if (process.platform !== 'darwin') app.quit();
+});

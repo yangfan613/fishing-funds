@@ -3,6 +3,7 @@ const axios = require('axios');
 const path = require('path');
 const Store = require('electron-store');
 const fs = require('fs');
+const iconv = require('iconv-lite');
 
 const store = new Store({
   name: 'funds-data',
@@ -14,7 +15,7 @@ const store = new Store({
       morningEnd: '11:31',
       afternoonStart: '13:00',
       afternoonEnd: '15:01',
-      showMenuBar: true   // 改为显示在菜单栏
+      showMenuBar: true
     }
   }
 });
@@ -40,20 +41,21 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 }
 
-// ---------- 托盘图标控制 ----------
+// ---------- 创建托盘图标（带文字“F”） ----------
+function createTrayIcon() {
+  const svg = `
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <rect width="18" height="18" rx="3" fill="#007AFF"/>
+      <text x="9" y="13" font-family="Arial" font-size="12" font-weight="bold" fill="white" text-anchor="middle">F</text>
+    </svg>
+  `;
+  const image = nativeImage.createFromDataURL(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+  return image;
+}
+
 function createTray() {
-  // 生成一个简单的图标（纯色圆点，或使用默认图标）
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png')) || nativeImage.createEmpty();
-  // 如果找不到图标，创建一个简单的 SVG 图标
-  if (icon.isEmpty()) {
-    const svg = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="8" cy="8" r="6" fill="#007AFF" />
-    </svg>`;
-    const img = nativeImage.createFromDataURL(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
-    tray = new Tray(img);
-  } else {
-    tray = new Tray(icon);
-  }
+  const icon = createTrayIcon();
+  tray = new Tray(icon);
   const contextMenu = Menu.buildFromTemplate([
     { label: '显示主窗口', click: () => { mainWindow.show(); } },
     { label: '退出', click: () => { app.quit(); } }
@@ -69,11 +71,9 @@ function applyMenuBarSetting() {
   if (process.platform === 'darwin') {
     const show = store.get('settings.showMenuBar', true);
     if (show) {
-      // 显示在菜单栏：隐藏 Dock 图标，创建托盘
       app.dock.hide();
       if (!tray) createTray();
     } else {
-      // 不显示在菜单栏：显示 Dock 图标，移除托盘
       app.dock.show();
       if (tray) {
         tray.destroy();
@@ -94,12 +94,14 @@ ipcMain.handle('save-settings', (event, settings) => {
 });
 
 // ---------- 数据源获取函数 ----------
-// 1. 天天基金（JSONP）
+
+// 1. 天天基金（JSONP，UTF-8）
 async function fetchFromTiantian(code) {
   const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
   const response = await axios.get(url, {
     timeout: 5000,
-    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }
+    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    responseType: 'text'
   });
   const jsonpStr = response.data;
   const jsonStr = jsonpStr.replace(/^jsonpgz\(/, '').replace(/\);$/, '');
@@ -115,7 +117,7 @@ async function fetchFromTiantian(code) {
   };
 }
 
-// 2. 腾讯证券（JSON）
+// 2. 腾讯证券（JSON，UTF-8）
 async function fetchFromTencent(code) {
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fund/fundInfo?code=jj${code}`;
   const response = await axios.get(url, {
@@ -138,14 +140,16 @@ async function fetchFromTencent(code) {
   };
 }
 
-// 3. 新浪基金（CSV）
+// 3. 新浪基金（CSV，GBK 编码）
 async function fetchFromSina(code) {
   const url = `https://hq.sinajs.cn/list=f_${code}`;
   const response = await axios.get(url, {
     timeout: 5000,
-    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn/' }
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn/' },
+    responseType: 'arraybuffer'  // 获取二进制数据
   });
-  const text = response.data;
+  // 解码 GBK
+  const text = iconv.decode(response.data, 'gbk');
   const match = text.match(/var hq_str_f_\w+="([^"]+)"/);
   if (!match) throw new Error('新浪数据解析失败');
   const parts = match[1].split(',');

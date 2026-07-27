@@ -5,12 +5,11 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac --x64"
+    "dist": "electron-builder --mac --x64 --publish never"
   },
   "build": {
     "appId": "com.fishing.funds",
     "productName": "基金估值速查",
-    "publish": "never",
     "mac": {
       "target": "dmg",
       "hardenedRuntime": true,

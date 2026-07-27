@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>基金估值 & 盈亏</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body {
+      background: transparent;
+      padding: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background-color: rgba(255, 255, 255, 0.7);
+      min-height: 100vh;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background-color: rgba(30, 30, 30, 0.85); color: #eee; }
+      .add-card, .fund-item { background: rgba(60, 60, 60, 0.6); border-color: rgba(255,255,255,0.1); }
+      input, .modal-content { background: #444; color: #eee; border-color: #555; }
+      .modal-content input { background: #333; color: #fff; }
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .header-row h2 { font-size: 18px; font-weight: 600; }
+    .icon-btn {
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      opacity: 0.7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: 0.2s;
+    }
+    .icon-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
+    .add-card {
+      background: rgba(255,255,255,0.4);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .add-card input { flex: 1; min-width: 70px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); padding: 8px 12px; font-size: 14px; outline: none; background: rgba(255,255,255,0.6); backdrop-filter: blur(10px); }
+    .add-card input:focus { border-color: #007AFF; background: rgba(255,255,255,0.9); }
+    .add-card button, .btn {
+      border-radius: 10px; border: none; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
+    }
+    .btn-primary { background: #007AFF; color: white; }
+    .btn-primary:hover { background: #0055CC; transform: scale(0.97); }
+    .btn-secondary { background: #8E8E93; color: white; }
+    .btn-secondary:hover { background: #6C6C70; }
+    .btn-danger { background: #FF3B30; color: white; }
+    .btn-danger:hover { background: #D70015; }
+    .fund-list { display: flex; flex-direction: column; gap: 10px; }
+    .fund-item {
+      background: rgba(255,255,255,0.4);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 12px 16px;
+      border: 1px solid rgba(255,255,255,0.3);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .fund-row { display: flex; justify-content: space-between; align-items: center; }
+    .fund-name { font-weight: 600; font-size: 16px; }
+    .fund-code { opacity: 0.6; font-size: 12px; margin-left: 8px; }
+    .fund-price { font-size: 18px; font-weight: 600; }
+    .fund-info { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; }
+    .fund-info span { opacity: 0.8; }
+    .fund-info .value { font-weight: 500; opacity: 1; }
+    .profit { font-weight: 600; }
+    .profit.positive { color: #34C759; }
+    .profit.negative { color: #FF3B30; }
+    .actions { display: flex; gap: 6px; }
+    .actions button { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; }
+    .status-bar { font-size: 12px; opacity: 0.5; text-align: center; margin-top: 8px; }
+    .modal-overlay {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-content {
+      background: white; border-radius: 16px; padding: 24px; width: 340px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-content h3 { margin-bottom: 16px; }
+    .modal-content label { display: block; margin: 12px 0 4px; font-weight: 500; }
+    .modal-content .inline-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .modal-content .inline-group input {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      font-size: 14px;
+    }
+    .modal-content .inline-group span { opacity: 0.6; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #ccc;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.3s;
+      flex-shrink: 0;
+    }
+    .switch.on { background: #34C759; }
+    .switch .slider {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .switch.on .slider { left: 22px; }
+    .hint { margin-top: 12px; font-size: 12px; opacity: 0.4; text-align: center; }
+    .loading { text-align: center; padding: 20px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="header-row">
+    <h2>📈 基金估值</h2>
+    <button class="icon-btn" id="settingsBtn">⚙️</button>
+  </div>
+
+  <div class="add-card">
+    <input id="inputCode" placeholder="代码" style="flex:0.8;">
+    <input id="inputCost" placeholder="成本价" style="flex:0.6;">
+    <input id="inputShares" placeholder="份额" style="flex:0.6;">
+    <button class="btn btn-primary" id="addBtn">➕ 添加</button>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <span id="autoStatus" style="font-size:12px; opacity:0.6;">⏳ 定时更新: 开启 (09:30-11:31, 13:00-15:01)</span>
+    <button class="btn btn-secondary" id="refreshBtn" style="padding:4px 16px;">🔄 刷新</button>
+  </div>
+
+  <div id="fundList" class="fund-list"></div>
+  <div id="loading" class="loading">⏳ 加载估值中...</div>
+  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾） | 仅供参考</div>
+
+  <!-- 设置模态框 -->
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>⚙️ 定时更新设置</h3>
+      <div class="switch-row">
+        <span>启用定时更新</span>
+        <div id="autoSwitch" class="switch on"><div class="slider"></div></div>
+      </div>
+      <label>上午时段</label>
+      <div class="inline-group">
+        <input type="time" id="morningStart" value="09:30" step="60">
+        <span>至</span>
+        <input type="time" id="morningEnd" value="11:31" step="60">
+      </div>
+      <label>下午时段</label>
+      <div class="inline-group">
+        <input type="time" id="afternoonStart" value="13:00" step="60">
+        <span>至</span>
+        <input type="time" id="afternoonEnd" value="15:01" step="60">
+      </div>
+      <div style="font-size:12px; opacity:0.6; margin-top:12px;">自动刷新间隔：5分钟（仅在时段内生效）</div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="settingsCancel">取消</button>
+        <button class="btn btn-primary" id="settingsSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- 全局状态 ----------
+    let funds = [];
+    let fundData = {};
+    let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01' };
+    let lastAutoRefresh = 0;
+    const AUTO_INTERVAL = 5 * 60 * 1000;
+
+    const listEl = document.getElementById('fundList');
+    const loadingEl = document.getElementById('loading');
+    const autoStatus = document.getElementById('autoStatus');
+    const settingsModal = document.getElementById('settingsModal');
+    const autoSwitch = document.getElementById('autoSwitch');
+    const morningStart = document.getElementById('morningStart');
+    const morningEnd = document.getElementById('morningEnd');
+    const afternoonStart = document.getElementById('afternoonStart');
+    const afternoonEnd = document.getElementById('afternoonEnd');
+
+    function toMinutes(timeStr) {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    }
+    function isInTimeRange() {
+      const now = new Date();
+      const mins = now.getHours() * 60 + now.getMinutes();
+      const ms = toMinutes(settings.morningStart);
+      const me = toMinutes(settings.morningEnd);
+      const as = toMinutes(settings.afternoonStart);
+      const ae = toMinutes(settings.afternoonEnd);
+      return (mins >= ms && mins < me) || (mins >= as && mins < ae);
+    }
+
+    async function loadStoredData() {
+      const saved = await window.api.loadFunds();
+      funds = saved && saved.length ? saved : [{ code: '110011', costPrice: 1.2, shares: 1000 }];
+      await window.api.saveFunds(funds);
+
+      const savedSettings = await window.api.loadSettings();
+      if (savedSettings && Object.keys(savedSettings).length) {
+        settings = { ...settings, ...savedSettings };
+      } else {
+        await window.api.saveSettings(settings);
+      }
+      applySettingsUI();
+      renderList();
+      refreshAll();
+    }
+
+    async function saveSettings() {
+      await window.api.saveSettings(settings);
+    }
+
+    function applySettingsUI() {
+      autoSwitch.className = 'switch' + (settings.autoUpdate ? ' on' : '');
+      morningStart.value = settings.morningStart;
+      morningEnd.value = settings.morningEnd;
+      afternoonStart.value = settings.afternoonStart;
+      afternoonEnd.value = settings.afternoonEnd;
+      updateStatusText();
+    }
+
+    function updateStatusText() {
+      if (settings.autoUpdate) {
+        autoStatus.textContent = `⏳ 定时更新: 开启 (${settings.morningStart}-${settings.morningEnd}, ${settings.afternoonStart}-${settings.afternoonEnd})`;
+      } else {
+        autoStatus.textContent = `⏹️ 定时更新: 关闭`;
+      }
+    }
+
+    async function refreshAll() {
+      if (!funds.length) return;
+      loadingEl.style.display = 'block';
+      listEl.style.opacity = '0.5';
+      try {
+        const reqList = funds.map(f => ({ code: f.code, costPrice: f.costPrice, shares: f.shares }));
+        const results = await window.api.fetchMultipleFunds(reqList);
+        const newData = {};
+        results.forEach(item => {
+          if (item.status === 'success') {
+            newData[item.code] = item;
+          } else {
+            newData[item.code] = { ...item, gsz: '--', gszzl: '--', profit: '--', profitRate: '--' };
+          }
+        });
+        fundData = newData;
+        renderList();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        loadingEl.style.display = 'none';
+        listEl.style.opacity = '1';
+      }
+    }
+
+    function renderList() {
+      if (!funds.length) {
+        listEl.innerHTML = '<div style="text-align:center;opacity:0.5;padding:30px;">暂无基金，请添加</div>';
+        return;
+      }
+      let html = '';
+      funds.forEach((fund, index) => {
+        const data = fundData[fund.code] || {};
+        const gsz = data.gsz !== undefined ? data.gsz : '--';
+        const gszzl = data.gszzl !== undefined ? data.gszzl : '--';
+        const name = data.name || fund.name || fund.code;
+        const cost = fund.costPrice;
+        const shares = fund.shares;
+        let profit = '--', profitRate = '--', profitClass = '';
+        if (data.gsz !== undefined && cost > 0) {
+          const p = (data.gsz - cost) * shares;
+          const pr = ((data.gsz - cost) / cost * 100);
+          profit = p.toFixed(2);
+          profitRate = pr.toFixed(2);
+          profitClass = p >= 0 ? 'positive' : 'negative';
+        }
+        const sourceTag = data.source ? ` (${data.source})` : '';
+        html += `
+          <div class="fund-item">
+            <div class="fund-row">
+              <span class="fund-name">${name} <span class="fund-code">${fund.code}${sourceTag}</span></span>
+              <span class="fund-price">${gsz}</span>
+            </div>
+            <div class="fund-info">
+              <span>涨跌: <span class="value ${gszzl >= 0 ? 'positive' : 'negative'}">${gszzl >= 0 ? '+' : ''}${gszzl}%</span></span>
+              <span>成本: <span class="value">${cost}</span></span>
+              <span>份额: <span class="value">${shares}</span></span>
+              <span>盈亏: <span class="value profit ${profitClass}">${profit}</span></span>
+              <span>收益率: <span class="value profit ${profitClass}">${profitRate}%</span></span>
+            </div>
+            <div class="fund-row" style="margin-top:4px;">
+              <span style="font-size:11px;opacity:0.4;">${data.gztime || ''}</span>
+              <div class="actions">
+                <button class="btn-secondary" onclick="editFund(${index})">✎ 编辑</button>
+                <button class="btn-danger" onclick="removeFund(${index})">✕ 删除</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+
+    async function addFund() {
+      const code = document.getElementById('inputCode').value.trim();
+      const cost = parseFloat(document.getElementById('inputCost').value);
+      const shares = parseFloat(document.getElementById('inputShares').value);
+      if (!code || isNaN(cost) || isNaN(shares) || cost <= 0 || shares <= 0) {
+        alert('请正确填写基金代码、成本价（>0）和份额（>0）');
+        return;
+      }
+      if (funds.some(f => f.code === code)) {
+        alert('该基金已存在');
+        return;
+      }
+      funds.push({ code, costPrice: cost, shares });
+      await window.api.saveFunds(funds);
+      document.getElementById('inputCode').value = '';
+      document.getElementById('inputCost').value = '';
+      document.getElementById('inputShares').value = '';
+      renderList();
+      refreshAll();
+    }
+
+    async function removeFund(index) {
+      if (!confirm('确认删除？')) return;
+      funds.splice(index, 1);
+      await window.api.saveFunds(funds);
+      renderList();
+      refreshAll();
+    }
+
+    let editingIndex = -1;
+    function editFund(index) {
+      editingIndex = index;
+      const f = funds[index];
+      const cost = prompt('输入新成本价:', f.costPrice);
+      if (cost === null) return;
+      const shares = prompt('输入新持有份额:', f.shares);
+      if (shares === null) return;
+      const newCost = parseFloat(cost);
+      const newShares = parseFloat(shares);
+      if (isNaN(newCost) || isNaN(newShares) || newCost <= 0 || newShares <= 0) {
+        alert('请输入有效的正数');
+        return;
+      }
+      funds[index].costPrice = newCost;
+      funds[index].shares = newShares;
+      window.api.saveFunds(funds);
+      renderList();
+      refreshAll();
+    }
+
+    function openSettings() {
+      window.api.loadSettings().then(s => {
+        if (s) settings = { ...settings, ...s };
+        applySettingsUI();
+        settingsModal.classList.add('active');
+      });
+    }
+    function closeSettings() {
+      settingsModal.classList.remove('active');
+    }
+
+    autoSwitch.addEventListener('click', () => {
+      settings.autoUpdate = !settings.autoUpdate;
+      applySettingsUI();
+    });
+
+    document.getElementById('settingsSave').addEventListener('click', async () => {
+      settings.morningStart = morningStart.value;
+      settings.morningEnd = morningEnd.value;
+      settings.afternoonStart = afternoonStart.value;
+      settings.afternoonEnd = afternoonEnd.value;
+      if (settings.morningStart >= settings.morningEnd || settings.afternoonStart >= settings.afternoonEnd) {
+        alert('开始时间必须小于结束时间');
+        return;
+      }
+      await window.api.saveSettings(settings);
+      applySettingsUI();
+      closeSettings();
+      updateStatusText();
+      lastAutoRefresh = 0;
+    });
+
+    document.getElementById('settingsCancel').addEventListener('click', closeSettings);
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+    function autoRefreshCheck() {
+      if (!settings.autoUpdate) return;
+      if (!isInTimeRange()) return;
+      const now = Date.now();
+      if (now - lastAutoRefresh < AUTO_INTERVAL) return;
+      refreshAll();
+      lastAutoRefresh = now;
+    }
+
+    setInterval(autoRefreshCheck, 30000);
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      refreshAll();
+      lastAutoRefresh = Date.now();
+    });
+    document.getElementById('addBtn').addEventListener('click', addFund);
+    document.querySelectorAll('.add-card input').forEach(inp => {
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addFund(); });
+    });
+    settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
+
+    loadStoredData();
+  </script>
+</body>
+</html>

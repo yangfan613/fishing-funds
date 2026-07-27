@@ -4,46 +4,32 @@
   <meta charset="UTF-8">
   <title>基金估值速查</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body {
       background: transparent;
-      padding: 16px;
+      padding: 12px 16px;
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      background-color: rgba(255, 255, 255, 0.7);
+      background-color: rgba(255,255,255,0.7);
       min-height: 100vh;
       user-select: none;
     }
     @media (prefers-color-scheme: dark) {
-      body { background-color: rgba(30, 30, 30, 0.85); color: #eee; }
-      .add-card, .fund-item { background: rgba(60, 60, 60, 0.6); border-color: rgba(255,255,255,0.1); }
-      input, .modal-content { background: #444; color: #eee; border-color: #555; }
-      .modal-content input { background: #333; color: #fff; }
+      body { background-color: rgba(30,30,30,0.85); color: #eee; }
+      .toolbar, .fund-table th, .fund-table td, .add-card, .modal-content { background: rgba(60,60,60,0.6); border-color: rgba(255,255,255,0.1); }
+      input, .modal-content input { background: #444; color: #eee; border-color: #555; }
     }
     .drag-area {
       -webkit-app-region: drag;
-      padding: 8px 0 4px 0;
-      margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      padding: 4px 0 8px 0;
     }
-    .drag-area h2 {
-      -webkit-app-region: no-drag;
-      font-size: 18px;
-      font-weight: 600;
-      margin: 0;
-    }
+    .drag-area h2 { -webkit-app-region: no-drag; font-size: 18px; }
     .drag-area .icon-btn {
       -webkit-app-region: no-drag;
-      background: none;
-      border: none;
-      font-size: 22px;
-      cursor: pointer;
-      opacity: 0.7;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: 0.2s;
+      background: none; border: none; font-size: 22px; cursor: pointer; opacity: 0.7; padding: 4px 8px; border-radius: 6px;
     }
     .drag-area .icon-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
 
@@ -52,36 +38,29 @@
       background: rgba(255,255,255,0.4);
       backdrop-filter: blur(10px);
       border-radius: 12px;
-      padding: 12px;
+      padding: 8px 12px;
       margin-bottom: 12px;
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       align-items: center;
     }
-    .add-card input {
+    .add-card input, .add-card select {
       flex: 1;
       min-width: 70px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid rgba(0,0,0,0.1);
-      padding: 8px 12px;
-      font-size: 14px;
+      padding: 6px 10px;
+      font-size: 13px;
       outline: none;
       background: rgba(255,255,255,0.6);
-      backdrop-filter: blur(10px);
     }
     .add-card input:focus { border-color: #007AFF; background: rgba(255,255,255,0.9); }
-    .add-card button, .btn {
-      border-radius: 10px;
-      border: none;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.2s;
+    .btn {
+      border-radius: 8px; border: none; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s;
     }
     .btn-primary { background: #007AFF; color: white; }
-    .btn-primary:hover { background: #0055CC; transform: scale(0.97); }
+    .btn-primary:hover { background: #0055CC; }
     .btn-secondary { background: #8E8E93; color: white; }
     .btn-secondary:hover { background: #6C6C70; }
     .btn-success { background: #34C759; color: white; }
@@ -91,74 +70,94 @@
     .btn-warning { background: #FF9500; color: white; }
     .btn-warning:hover { background: #E68A00; }
     .btn-active { background: #FF2D55; color: white; }
-    .btn-active:hover { background: #D70035; }
 
     .toolbar {
       -webkit-app-region: no-drag;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
       flex-wrap: wrap;
       gap: 6px;
+      margin-bottom: 8px;
+      background: rgba(255,255,255,0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 10px;
+      padding: 6px 12px;
     }
     .toolbar-left, .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .update-time {
-      font-size: 12px;
-      opacity: 0.6;
+    .update-time { font-size: 12px; opacity: 0.6; white-space: nowrap; }
+
+    .group-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .group-tab {
+      padding: 4px 12px;
+      border-radius: 16px;
+      background: rgba(0,0,0,0.05);
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+      border: 1px solid transparent;
+    }
+    .group-tab.active { background: #007AFF; color: white; border-color: #007AFF; }
+    .group-tab:hover { background: rgba(0,0,0,0.1); }
+    .group-tab .badge { font-size: 11px; opacity: 0.6; margin-left: 4px; }
+
+    .fund-table-wrap {
+      max-height: 540px;
+      overflow-y: auto;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+    }
+    .fund-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      -webkit-app-region: no-drag;
+    }
+    .fund-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255,255,255,0.3);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 2;
       white-space: nowrap;
     }
-    .fund-list { display: flex; flex-direction: column; gap: 10px; -webkit-app-region: no-drag; }
-    .fund-item {
-      background: rgba(255,255,255,0.4);
-      backdrop-filter: blur(10px);
-      border-radius: 12px;
-      padding: 12px 16px;
-      border: 1px solid rgba(255,255,255,0.3);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      position: relative;
-    }
-    .fund-row { display: flex; justify-content: space-between; align-items: center; }
-    .fund-left { display: flex; align-items: center; gap: 10px; }
-    .fund-left input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-      display: none; /* 默认隐藏，删除模式显示 */
-    }
-    .fund-left input[type="checkbox"].show { display: inline-block; }
-    .fund-name { font-weight: 600; font-size: 16px; }
-    .fund-code { opacity: 0.6; font-size: 12px; margin-left: 6px; }
-    .fund-price { font-size: 18px; font-weight: 600; }
-    .fund-info { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; }
-    .fund-info span { opacity: 0.8; }
-    .fund-info .value { font-weight: 500; opacity: 1; }
-    .profit { font-weight: 600; }
-    .positive { color: #FF3B30; }
-    .negative { color: #34C759; }
-    .edit-btn {
-      background: none;
+    .fund-table th:hover { background: rgba(0,0,0,0.05); }
+    .fund-table td { padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.05); vertical-align: middle; }
+    .fund-row:hover { background: rgba(0,0,0,0.02); }
+    .fund-row .checkbox-col { width: 30px; text-align: center; }
+    .fund-row .name-col { font-weight: 500; }
+    .fund-row .code-col { opacity: 0.6; font-size: 11px; margin-left: 4px; }
+    .fund-row .group-col select {
+      background: transparent;
       border: none;
-      cursor: pointer;
-      font-size: 14px;
-      opacity: 0.5;
-      padding: 4px 8px;
+      font-size: 12px;
+      padding: 2px 4px;
       border-radius: 4px;
-      transition: 0.2s;
-      display: none; /* 默认隐藏，编辑模式显示 */
     }
-    .edit-btn.show { display: inline-block; }
-    .edit-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
+    .fund-row .group-col select:focus { outline: 1px solid #007AFF; }
+    .positive { color: #FF3B30; }   /* 红色 */
+    .negative { color: #34C759; }   /* 绿色 */
+    .small-note { font-size: 11px; opacity: 0.5; }
     .batch-bar {
-      -webkit-app-region: no-drag;
       margin-top: 8px;
       display: none;
       gap: 10px;
       align-items: center;
       justify-content: flex-end;
+      padding: 6px 0;
     }
     .batch-bar.show { display: flex; }
     .batch-bar span { font-size: 13px; opacity: 0.7; }
@@ -212,10 +211,12 @@
     .switch.on .slider { left: 22px; }
     .hint { margin-top: 12px; font-size: 12px; opacity: 0.4; text-align: center; }
     .loading { text-align: center; padding: 20px; display: none; }
+
+    .inline-group { display: flex; gap: 8px; align-items: center; }
+    .inline-group input { flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid #ccc; background: #f5f5f5; font-size: 14px; }
   </style>
 </head>
 <body>
-  <!-- 可拖动区域 -->
   <div class="drag-area">
     <h2>📈 基金估值</h2>
     <button class="icon-btn" id="settingsBtn">⚙️</button>
@@ -223,9 +224,10 @@
 
   <!-- 添加区域 -->
   <div class="add-card">
-    <input id="inputCode" placeholder="代码" style="flex:0.8;">
+    <input id="inputCode" placeholder="基金代码" style="flex:0.8;">
     <input id="inputCost" placeholder="成本价" style="flex:0.6;">
     <input id="inputShares" placeholder="份额" style="flex:0.6;">
+    <select id="inputGroup" style="flex:0.6;"></select>
     <button class="btn btn-primary" id="addBtn">➕ 添加</button>
   </div>
 
@@ -234,18 +236,41 @@
     <div class="toolbar-left">
       <button class="btn btn-secondary" id="refreshBtn" style="padding:4px 16px;">🔄 刷新</button>
       <span id="autoStatus" style="font-size:12px; opacity:0.6;">⏳ 定时更新: 开启</span>
-      <button class="btn btn-secondary" id="editModeBtn" style="padding:4px 12px;">✎ 编辑</button>
-      <button class="btn btn-secondary" id="deleteModeBtn" style="padding:4px 12px;">🗑️ 删除</button>
     </div>
     <div class="toolbar-right">
       <span class="update-time" id="lastUpdateTime">最后更新: --</span>
+      <button class="btn btn-secondary" id="editModeBtn" style="padding:4px 12px;">✎ 编辑</button>
+      <button class="btn btn-secondary" id="deleteModeBtn" style="padding:4px 12px;">🗑️ 删除</button>
       <button class="btn btn-success" id="importBtn" style="padding:4px 12px;">📂 导入</button>
       <button class="btn btn-secondary" id="exportBtn" style="padding:4px 12px;">💾 导出</button>
     </div>
   </div>
 
-  <!-- 基金列表 -->
-  <div id="fundList" class="fund-list"></div>
+  <!-- 分组标签 -->
+  <div class="group-tabs" id="groupTabs"></div>
+
+  <!-- 表格 -->
+  <div class="fund-table-wrap">
+    <table class="fund-table" id="fundTable">
+      <thead>
+        <tr>
+          <th class="checkbox-col" style="width:30px;"><input type="checkbox" id="selectAll"></th>
+          <th data-sort="name" style="min-width:140px;">基金名称</th>
+          <th data-sort="code" style="width:85px;">代码</th>
+          <th data-sort="group" style="width:90px;">分组</th>
+          <th data-sort="gsz" style="width:95px; cursor:pointer;">实时估值</th>
+          <th data-sort="change" style="width:80px; cursor:pointer;">涨跌额</th>
+          <th data-sort="gszzl" style="width:90px; cursor:pointer;">涨跌幅</th>
+          <th data-sort="cost" style="width:80px; cursor:pointer;">成本</th>
+          <th data-sort="shares" style="width:80px; cursor:pointer;">份额</th>
+          <th data-sort="profit" style="width:95px; cursor:pointer;">盈亏</th>
+          <th data-sort="profitRate" style="width:95px; cursor:pointer;">收益率</th>
+          <th style="width:60px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="fundTableBody"></tbody>
+    </table>
+  </div>
   <div id="loading" class="loading">⏳ 加载估值中...</div>
 
   <!-- 批量删除栏 -->
@@ -253,9 +278,11 @@
     <span id="selectedCount">已选 0 项</span>
     <button class="btn btn-danger" id="batchDeleteBtn">删除选中</button>
     <button class="btn btn-secondary" id="cancelDeleteBtn">取消</button>
+    <button class="btn btn-secondary" id="batchMoveBtn">移动到分组</button>
+    <select id="batchMoveTarget" style="padding:4px 8px; border-radius:6px; border:1px solid #ccc; background:#f5f5f5;"></select>
   </div>
 
-  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾） | 仅供参考</div>
+  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾） | 盘中自动刷新，涨红跌绿</div>
 
   <!-- 设置模态框 -->
   <div id="settingsModal" class="modal-overlay">
@@ -270,16 +297,16 @@
         <div id="menuBarSwitch" class="switch on"><div class="slider"></div></div>
       </div>
       <label>上午时段</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="time" id="morningStart" value="09:30" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
+      <div class="inline-group">
+        <input type="time" id="morningStart" value="09:30" step="60">
         <span>至</span>
-        <input type="time" id="morningEnd" value="11:31" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
+        <input type="time" id="morningEnd" value="11:31" step="60">
       </div>
       <label>下午时段</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="time" id="afternoonStart" value="13:00" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
+      <div class="inline-group">
+        <input type="time" id="afternoonStart" value="13:00" step="60">
         <span>至</span>
-        <input type="time" id="afternoonEnd" value="15:01" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
+        <input type="time" id="afternoonEnd" value="15:01" step="60">
       </div>
       <div style="font-size:12px; opacity:0.6; margin-top:12px;">自动刷新间隔：5分钟（仅在时段内生效）</div>
       <div class="modal-actions">
@@ -307,8 +334,9 @@
   </div>
 
   <script>
-    // ---------- 全局状态 ----------
+    // ---------- 全局 ----------
     let funds = [];
+    let groups = ['默认分组'];
     let fundData = {};
     let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01', showMenuBar: true };
     let lastAutoRefresh = 0;
@@ -316,9 +344,12 @@
     let editingIndex = -1;
     let editModeActive = false;
     let deleteModeActive = false;
+    let currentGroup = '全部';
+    let sortKey = 'name';
+    let sortAsc = true;
 
-    // DOM 元素
-    const listEl = document.getElementById('fundList');
+    // DOM 引用
+    const tableBody = document.getElementById('fundTableBody');
     const loadingEl = document.getElementById('loading');
     const autoStatus = document.getElementById('autoStatus');
     const settingsModal = document.getElementById('settingsModal');
@@ -334,13 +365,16 @@
     const batchBar = document.getElementById('batchBar');
     const editModeBtn = document.getElementById('editModeBtn');
     const deleteModeBtn = document.getElementById('deleteModeBtn');
+    const groupTabs = document.getElementById('groupTabs');
+    const inputGroup = document.getElementById('inputGroup');
+    const batchMoveTarget = document.getElementById('batchMoveTarget');
 
     // 编辑框
     const editCode = document.getElementById('editCode');
     const editCost = document.getElementById('editCost');
     const editShares = document.getElementById('editShares');
 
-    // ---------- 时间工具 ----------
+    // ---------- 工具函数 ----------
     function toMinutes(timeStr) {
       const [h, m] = timeStr.split(':').map(Number);
       return h * 60 + m;
@@ -354,36 +388,32 @@
       const ae = toMinutes(settings.afternoonEnd);
       return (mins >= ms && mins < me) || (mins >= as && mins < ae);
     }
-
-    // ---------- 更新时间 ----------
     function updateLastUpdateTime() {
       const now = new Date();
-      const timeStr = now.toLocaleString('zh-CN', { hour12: false });
-      lastUpdateEl.textContent = '最后更新: ' + timeStr;
+      lastUpdateEl.textContent = '最后更新: ' + now.toLocaleString('zh-CN', { hour12: false });
     }
 
     // ---------- 加载存储 ----------
     async function loadStoredData() {
       const saved = await window.api.loadFunds();
-      funds = saved && saved.length ? saved : [{ code: '110011', name: '', costPrice: 1.2, shares: 1000 }];
-      await window.api.saveFunds(funds);
-
+      funds = saved && saved.length ? saved : [{ code: '110011', name: '', costPrice: 1.2, shares: 1000, group: '默认分组' }];
+      const savedGroups = await window.api.loadGroups();
+      groups = savedGroups && savedGroups.length ? savedGroups : ['默认分组'];
       const savedSettings = await window.api.loadSettings();
-      if (savedSettings && Object.keys(savedSettings).length) {
-        settings = { ...settings, ...savedSettings };
-      } else {
-        await window.api.saveSettings(settings);
-      }
+      if (savedSettings && Object.keys(savedSettings).length) settings = { ...settings, ...savedSettings };
+      else await window.api.saveSettings(settings);
       applySettingsUI();
+      renderGroupTabs();
+      renderAddGroupSelect();
+      renderBatchMoveSelect();
       renderList();
       refreshAll();
     }
 
-    // ---------- 保存设置 ----------
-    async function saveSettings() {
-      await window.api.saveSettings(settings);
-    }
+    async function saveFunds() { await window.api.saveFunds(funds); }
+    async function saveGroups() { await window.api.saveGroups(groups); }
 
+    // ---------- 设置 ----------
     function applySettingsUI() {
       autoSwitch.className = 'switch' + (settings.autoUpdate ? ' on' : '');
       menuBarSwitch.className = 'switch' + (settings.showMenuBar !== false ? ' on' : '');
@@ -393,7 +423,6 @@
       afternoonEnd.value = settings.afternoonEnd;
       updateStatusText();
     }
-
     function updateStatusText() {
       if (settings.autoUpdate) {
         autoStatus.textContent = `⏳ 定时更新: 开启 (${settings.morningStart}-${settings.morningEnd}, ${settings.afternoonStart}-${settings.afternoonEnd})`;
@@ -402,11 +431,59 @@
       }
     }
 
+    // ---------- 分组渲染 ----------
+    function renderGroupTabs() {
+      let html = `<span class="group-tab ${currentGroup === '全部' ? 'active' : ''}" data-group="全部">全部 <span class="badge">${funds.length}</span></span>`;
+      groups.forEach(g => {
+        const count = funds.filter(f => f.group === g).length;
+        html += `<span class="group-tab ${currentGroup === g ? 'active' : ''}" data-group="${g}">${g} <span class="badge">${count}</span></span>`;
+      });
+      html += `<button class="btn btn-secondary" id="addGroupBtn" style="padding:2px 10px; font-size:12px;">+ 添加分组</button>`;
+      groupTabs.innerHTML = html;
+      document.querySelectorAll('.group-tab').forEach(el => {
+        el.addEventListener('click', () => {
+          currentGroup = el.dataset.group;
+          renderGroupTabs();
+          renderList();
+        });
+      });
+      document.getElementById('addGroupBtn')?.addEventListener('click', () => {
+        const name = prompt('请输入新分组名称:');
+        if (name && name.trim() && !groups.includes(name.trim())) {
+          groups.push(name.trim());
+          saveGroups();
+          renderGroupTabs();
+          renderAddGroupSelect();
+          renderBatchMoveSelect();
+        } else if (groups.includes(name.trim())) {
+          alert('分组已存在');
+        }
+      });
+    }
+
+    function renderAddGroupSelect() {
+      inputGroup.innerHTML = '';
+      groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        inputGroup.appendChild(opt);
+      });
+    }
+    function renderBatchMoveSelect() {
+      batchMoveTarget.innerHTML = '';
+      groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        batchMoveTarget.appendChild(opt);
+      });
+    }
+
     // ---------- 刷新估值 ----------
     async function refreshAll() {
       if (!funds.length) return;
       loadingEl.style.display = 'block';
-      listEl.style.opacity = '0.5';
       try {
         const reqList = funds.map(f => ({ code: f.code, costPrice: f.costPrice, shares: f.shares }));
         const results = await window.api.fetchMultipleFunds(reqList);
@@ -415,35 +492,66 @@
           if (item.status === 'success') {
             newData[item.code] = item;
           } else {
-            newData[item.code] = { ...item, gsz: '--', gszzl: '--', profit: '--', profitRate: '--' };
+            newData[item.code] = { ...item, gsz: '--', gszzl: '--', profit: '--', profitRate: '--', nav: null };
           }
         });
         fundData = newData;
         renderList();
         updateLastUpdateTime();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        loadingEl.style.display = 'none';
-        listEl.style.opacity = '1';
-      }
+      } catch (e) { console.error(e); }
+      finally { loadingEl.style.display = 'none'; }
     }
 
-    // ---------- 渲染列表 ----------
+    // ---------- 渲染表格 ----------
     function renderList() {
-      if (!funds.length) {
-        listEl.innerHTML = '<div style="text-align:center;opacity:0.5;padding:30px;">暂无基金，请添加</div>';
+      let filtered = currentGroup === '全部' ? funds : funds.filter(f => f.group === currentGroup);
+      // 排序
+      filtered.sort((a, b) => {
+        let va = a[sortKey], vb = b[sortKey];
+        if (sortKey === 'gsz' || sortKey === 'gszzl' || sortKey === 'cost' || sortKey === 'shares' || sortKey === 'profit' || sortKey === 'profitRate' || sortKey === 'change') {
+          const dataA = fundData[a.code] || {};
+          const dataB = fundData[b.code] || {};
+          if (sortKey === 'change') {
+            va = (dataA.gsz !== undefined && dataA.nav !== undefined) ? (dataA.gsz - dataA.nav) : null;
+            vb = (dataB.gsz !== undefined && dataB.nav !== undefined) ? (dataB.gsz - dataB.nav) : null;
+          } else {
+            va = dataA[sortKey] ?? (sortKey === 'cost' ? a.costPrice : sortKey === 'shares' ? a.shares : 0);
+            vb = dataB[sortKey] ?? (sortKey === 'cost' ? b.costPrice : sortKey === 'shares' ? b.shares : 0);
+          }
+        }
+        if (va === undefined || va === null) va = '';
+        if (vb === undefined || vb === null) vb = '';
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va < vb) return sortAsc ? -1 : 1;
+        if (va > vb) return sortAsc ? 1 : -1;
+        return 0;
+      });
+
+      if (!filtered.length) {
+        tableBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; opacity:0.5;">暂无基金</td></tr>';
         updateSelectedCount();
         return;
       }
+
       let html = '';
-      funds.forEach((fund, index) => {
+      filtered.forEach((fund, idx) => {
         const data = fundData[fund.code] || {};
         const gsz = data.gsz !== undefined ? data.gsz : '--';
         const gszzl = data.gszzl !== undefined ? data.gszzl : '--';
+        const nav = data.nav !== undefined ? data.nav : null;
         const name = data.name || fund.name || fund.code;
         const cost = fund.costPrice;
         const shares = fund.shares;
+
+        // 计算涨跌额
+        let change = '--';
+        let changeClass = '';
+        if (gsz !== '--' && nav !== null && nav !== undefined && nav !== 0) {
+          const diff = parseFloat(gsz) - parseFloat(nav);
+          change = (diff >= 0 ? '+' : '') + diff.toFixed(4);
+          changeClass = diff >= 0 ? 'positive' : 'negative';
+        }
 
         let profit = '--', profitRate = '--', profitClass = '';
         if (data.gsz !== undefined && cost > 0) {
@@ -454,42 +562,67 @@
           profitClass = p >= 0 ? 'positive' : 'negative';
         }
         const sourceTag = data.source ? ` (${data.source})` : '';
-        let gszzlClass = 'value';
+        let gszzlClass = '';
         if (gszzl !== '--') {
-          gszzlClass += gszzl >= 0 ? ' positive' : ' negative';
+          gszzlClass = gszzl >= 0 ? 'positive' : 'negative';
         }
+        let gszClass = gszzlClass;
 
         html += `
-          <div class="fund-item" data-index="${index}">
-            <div class="fund-row">
-              <div class="fund-left">
-                <input type="checkbox" class="fund-checkbox" data-index="${index}" ${deleteModeActive ? 'style="display:inline-block"' : ''}>
-                <span class="fund-name">${name} <span class="fund-code">${fund.code}${sourceTag}</span></span>
-              </div>
-              <span class="fund-price">${gsz}</span>
-            </div>
-            <div class="fund-info">
-              <span>涨跌: <span class="${gszzlClass}">${gszzl >= 0 ? '+' : ''}${gszzl}%</span></span>
-              <span>成本: <span class="value">${cost}</span></span>
-              <span>份额: <span class="value">${shares}</span></span>
-              <span>盈亏: <span class="value profit ${profitClass}">${profit}</span></span>
-              <span>收益率: <span class="value profit ${profitClass}">${profitRate}%</span></span>
-            </div>
-            <div class="fund-row" style="margin-top:4px;">
-              <span style="font-size:11px;opacity:0.4;">${data.gztime || ''}</span>
-              <button class="edit-btn ${editModeActive ? 'show' : ''}" onclick="openEditModal(${index})">✎ 编辑</button>
-            </div>
-          </div>
+          <tr class="fund-row" data-index="${idx}">
+            <td class="checkbox-col"><input type="checkbox" class="fund-checkbox" data-code="${fund.code}" ${deleteModeActive ? '' : 'style="display:none"' }></td>
+            <td class="name-col">${name}</td>
+            <td class="code-col">${fund.code}${sourceTag}</td>
+            <td class="group-col">
+              <select class="group-select" data-code="${fund.code}">
+                ${groups.map(g => `<option value="${g}" ${g === fund.group ? 'selected' : ''}>${g}</option>`).join('')}
+              </select>
+            </td>
+            <td><strong class="${gszClass}">${gsz}</strong></td>
+            <td class="${changeClass}">${change}</td>
+            <td class="${gszzlClass}">${gszzl !== '--' ? (gszzl >= 0 ? '+' : '') + gszzl + '%' : '--'}</td>
+            <td>${cost}</td>
+            <td>${shares}</td>
+            <td class="profit ${profitClass}">${profit}</td>
+            <td class="profit ${profitClass}">${profitRate}%</td>
+            <td>
+              <button class="btn btn-secondary edit-btn" style="padding:2px 8px; font-size:11px; display:${editModeActive ? 'inline-block' : 'none'}" data-code="${fund.code}">✎</button>
+            </td>
+          </tr>
         `;
       });
-      listEl.innerHTML = html;
+      tableBody.innerHTML = html;
+
+      // 事件绑定：分组切换
+      document.querySelectorAll('.group-select').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          const code = e.target.dataset.code;
+          const newGroup = e.target.value;
+          const f = funds.find(f => f.code === code);
+          if (f) { f.group = newGroup; await saveFunds(); renderGroupTabs(); renderList(); }
+        });
+      });
+
+      // 编辑按钮事件
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const code = e.target.dataset.code;
+          const idx = funds.findIndex(f => f.code === code);
+          if (idx !== -1) openEditModal(idx);
+        });
+      });
+
+      // 复选框变化
+      document.querySelectorAll('.fund-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+      });
       updateSelectedCount();
     }
 
-    // ---------- 更新选中计数 ----------
+    // ---------- 选中计数 ----------
     function updateSelectedCount() {
-      const checkboxes = document.querySelectorAll('.fund-checkbox:checked');
-      selectedCount.textContent = `已选 ${checkboxes.length} 项`;
+      const checked = document.querySelectorAll('.fund-checkbox:checked').length;
+      selectedCount.textContent = `已选 ${checked} 项`;
     }
 
     // ---------- 添加基金 ----------
@@ -497,28 +630,23 @@
       const code = document.getElementById('inputCode').value.trim();
       const cost = parseFloat(document.getElementById('inputCost').value);
       const shares = parseFloat(document.getElementById('inputShares').value);
+      const group = inputGroup.value;
       if (!code || isNaN(cost) || isNaN(shares) || cost <= 0 || shares <= 0) {
         alert('请正确填写基金代码、成本价（>0）和份额（>0）');
         return;
       }
-      if (funds.some(f => f.code === code)) {
-        alert('该基金已存在');
-        return;
-      }
+      if (funds.some(f => f.code === code)) { alert('该基金已存在'); return; }
       try {
         const info = await window.api.fetchFund(code);
-        if (info.status === 'success') {
-          funds.push({ code, name: info.name, costPrice: cost, shares });
-        } else {
-          funds.push({ code, name: '', costPrice: cost, shares });
-        }
+        funds.push({ code, name: info.status === 'success' ? info.name : '', costPrice: cost, shares, group });
       } catch {
-        funds.push({ code, name: '', costPrice: cost, shares });
+        funds.push({ code, name: '', costPrice: cost, shares, group });
       }
-      await window.api.saveFunds(funds);
+      await saveFunds();
       document.getElementById('inputCode').value = '';
       document.getElementById('inputCost').value = '';
       document.getElementById('inputShares').value = '';
+      renderGroupTabs();
       renderList();
       refreshAll();
     }
@@ -532,81 +660,62 @@
       editShares.value = f.shares;
       editModal.classList.add('active');
     }
-
     async function saveEdit() {
       const cost = parseFloat(editCost.value);
       const shares = parseFloat(editShares.value);
-      if (isNaN(cost) || isNaN(shares) || cost <= 0 || shares <= 0) {
-        alert('请输入有效的正数');
-        return;
-      }
+      if (isNaN(cost) || isNaN(shares) || cost <= 0 || shares <= 0) { alert('请输入有效的正数'); return; }
       if (editingIndex >= 0 && editingIndex < funds.length) {
         funds[editingIndex].costPrice = cost;
         funds[editingIndex].shares = shares;
-        await window.api.saveFunds(funds);
+        await saveFunds();
         editModal.classList.remove('active');
         renderList();
         refreshAll();
       }
     }
+    function closeEditModal() { editModal.classList.remove('active'); }
 
-    function closeEditModal() {
-      editModal.classList.remove('active');
-    }
-
-    // ---------- 编辑模式切换 ----------
+    // ---------- 编辑/删除模式切换 ----------
     function toggleEditMode() {
       editModeActive = !editModeActive;
-      if (editModeActive) {
-        // 如果删除模式开启，先关闭
-        if (deleteModeActive) toggleDeleteMode();
-        editModeBtn.textContent = '✎ 编辑(开)';
-        editModeBtn.classList.add('btn-active');
-        editModeBtn.classList.remove('btn-secondary');
-      } else {
-        editModeBtn.textContent = '✎ 编辑';
-        editModeBtn.classList.remove('btn-active');
-        editModeBtn.classList.add('btn-secondary');
-      }
-      renderList(); // 重新渲染显示/隐藏编辑按钮
+      if (editModeActive && deleteModeActive) toggleDeleteMode();
+      editModeBtn.textContent = editModeActive ? '✎ 编辑(开)' : '✎ 编辑';
+      editModeBtn.className = 'btn ' + (editModeActive ? 'btn-active' : 'btn-secondary');
+      renderList();
     }
-
-    // ---------- 删除模式切换 ----------
     function toggleDeleteMode() {
       deleteModeActive = !deleteModeActive;
-      if (deleteModeActive) {
-        if (editModeActive) toggleEditMode(); // 关闭编辑模式
-        deleteModeBtn.textContent = '🗑️ 删除(开)';
-        deleteModeBtn.classList.add('btn-active');
-        deleteModeBtn.classList.remove('btn-secondary');
-        batchBar.classList.add('show');
-      } else {
-        deleteModeBtn.textContent = '🗑️ 删除';
-        deleteModeBtn.classList.remove('btn-active');
-        deleteModeBtn.classList.add('btn-secondary');
-        batchBar.classList.remove('show');
-        // 取消所有复选框选中
-        document.querySelectorAll('.fund-checkbox').forEach(cb => cb.checked = false);
-        updateSelectedCount();
-      }
-      renderList(); // 重新渲染显示/隐藏复选框
+      if (deleteModeActive && editModeActive) toggleEditMode();
+      deleteModeBtn.textContent = deleteModeActive ? '🗑️ 删除(开)' : '🗑️ 删除';
+      deleteModeBtn.className = 'btn ' + (deleteModeActive ? 'btn-active' : 'btn-secondary');
+      batchBar.style.display = deleteModeActive ? 'flex' : 'none';
+      renderList();
     }
 
     // ---------- 批量删除 ----------
     async function batchDelete() {
-      const checkboxes = document.querySelectorAll('.fund-checkbox:checked');
-      if (checkboxes.length === 0) {
-        alert('请至少选择一项');
-        return;
-      }
-      if (!confirm(`确认删除选中的 ${checkboxes.length} 项基金？`)) return;
-      const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a,b) => b - a);
-      for (const idx of indices) {
-        funds.splice(idx, 1);
-      }
-      await window.api.saveFunds(funds);
-      // 退出删除模式
-      toggleDeleteMode(); // 关闭删除模式
+      const checked = document.querySelectorAll('.fund-checkbox:checked');
+      if (!checked.length) { alert('请至少选择一项'); return; }
+      if (!confirm(`确认删除选中的 ${checked.length} 项？`)) return;
+      const codes = Array.from(checked).map(cb => cb.dataset.code);
+      funds = funds.filter(f => !codes.includes(f.code));
+      await saveFunds();
+      toggleDeleteMode();
+      renderGroupTabs();
+      renderList();
+      refreshAll();
+    }
+
+    // ---------- 批量移动 ----------
+    async function batchMove() {
+      const checked = document.querySelectorAll('.fund-checkbox:checked');
+      if (!checked.length) { alert('请至少选择一项'); return; }
+      const target = batchMoveTarget.value;
+      const codes = Array.from(checked).map(cb => cb.dataset.code);
+      funds.forEach(f => { if (codes.includes(f.code)) f.group = target; });
+      await saveFunds();
+      toggleDeleteMode();
+      renderGroupTabs();
       renderList();
       refreshAll();
     }
@@ -618,48 +727,50 @@
         alert(result.message);
         const saved = await window.api.loadFunds();
         funds = saved;
+        renderGroupTabs();
         renderList();
         refreshAll();
       } else {
         alert('导入失败: ' + result.message);
       }
     }
-
     async function exportFunds() {
       const result = await window.api.exportFunds();
       alert(result.message);
     }
 
-    // ---------- 设置模态框 ----------
+    // ---------- 设置 ----------
     function openSettings() {
-      window.api.loadSettings().then(s => {
-        if (s) settings = { ...settings, ...s };
-        applySettingsUI();
-        settingsModal.classList.add('active');
+      window.api.loadSettings().then(s => { if (s) settings = { ...settings, ...s }; applySettingsUI(); settingsModal.classList.add('active'); });
+    }
+    function closeSettings() { settingsModal.classList.remove('active'); }
+
+    // ---------- 排序 ----------
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (sortKey === key) sortAsc = !sortAsc;
+        else { sortKey = key; sortAsc = true; }
+        renderList();
       });
-    }
-    function closeSettings() {
-      settingsModal.classList.remove('active');
-    }
+    });
+
+    // ---------- 全选 ----------
+    document.getElementById('selectAll')?.addEventListener('change', (e) => {
+      document.querySelectorAll('.fund-checkbox').forEach(cb => cb.checked = e.target.checked);
+      updateSelectedCount();
+    });
 
     // ---------- 事件绑定 ----------
-    autoSwitch.addEventListener('click', () => {
-      settings.autoUpdate = !settings.autoUpdate;
-      applySettingsUI();
-    });
-    menuBarSwitch.addEventListener('click', () => {
-      settings.showMenuBar = !settings.showMenuBar;
-      applySettingsUI();
-    });
-
+    autoSwitch.addEventListener('click', () => { settings.autoUpdate = !settings.autoUpdate; applySettingsUI(); });
+    menuBarSwitch.addEventListener('click', () => { settings.showMenuBar = !settings.showMenuBar; applySettingsUI(); });
     document.getElementById('settingsSave').addEventListener('click', async () => {
       settings.morningStart = morningStart.value;
       settings.morningEnd = morningEnd.value;
       settings.afternoonStart = afternoonStart.value;
       settings.afternoonEnd = afternoonEnd.value;
       if (settings.morningStart >= settings.morningEnd || settings.afternoonStart >= settings.afternoonEnd) {
-        alert('开始时间必须小于结束时间');
-        return;
+        alert('开始时间必须小于结束时间'); return;
       }
       await window.api.saveSettings(settings);
       applySettingsUI();
@@ -669,51 +780,29 @@
     });
     document.getElementById('settingsCancel').addEventListener('click', closeSettings);
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
-
-    // 编辑模态框
     document.getElementById('editCancel').addEventListener('click', closeEditModal);
     document.getElementById('editSave').addEventListener('click', saveEdit);
     editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditModal(); });
-
-    // 编辑/删除模式按钮
     editModeBtn.addEventListener('click', toggleEditMode);
     deleteModeBtn.addEventListener('click', toggleDeleteMode);
-
-    // 批量删除
     document.getElementById('batchDeleteBtn').addEventListener('click', batchDelete);
-    document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
-      if (deleteModeActive) toggleDeleteMode();
-    });
-
-    // 监听复选框变化更新计数（事件委托）
-    listEl.addEventListener('change', (e) => {
-      if (e.target.classList.contains('fund-checkbox')) {
-        updateSelectedCount();
-      }
-    });
+    document.getElementById('cancelDeleteBtn').addEventListener('click', () => { if (deleteModeActive) toggleDeleteMode(); });
+    document.getElementById('batchMoveBtn').addEventListener('click', batchMove);
+    document.getElementById('refreshBtn').addEventListener('click', () => { refreshAll(); lastAutoRefresh = Date.now(); });
+    document.getElementById('addBtn').addEventListener('click', addFund);
+    document.querySelectorAll('.add-card input').forEach(inp => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addFund(); }));
+    document.getElementById('importBtn').addEventListener('click', importFunds);
+    document.getElementById('exportBtn').addEventListener('click', exportFunds);
 
     // 定时刷新
     function autoRefreshCheck() {
       if (!settings.autoUpdate) return;
       if (!isInTimeRange()) return;
-      const now = Date.now();
-      if (now - lastAutoRefresh < AUTO_INTERVAL) return;
-      refreshAll();
-      lastAutoRefresh = now;
-    }
-    setInterval(autoRefreshCheck, 30000);
-
-    // 手动刷新
-    document.getElementById('refreshBtn').addEventListener('click', () => {
+      if (Date.now() - lastAutoRefresh < AUTO_INTERVAL) return;
       refreshAll();
       lastAutoRefresh = Date.now();
-    });
-    document.getElementById('addBtn').addEventListener('click', addFund);
-    document.querySelectorAll('.add-card input').forEach(inp => {
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addFund(); });
-    });
-    document.getElementById('importBtn').addEventListener('click', importFunds);
-    document.getElementById('exportBtn').addEventListener('click', exportFunds);
+    }
+    setInterval(autoRefreshCheck, 30000);
 
     // 启动
     loadStoredData();

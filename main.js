@@ -20,7 +20,7 @@ const store = new Store({
   }
 });
 
-let mainWindow;
+let mainWindow = null;
 let tray = null;
 
 function createWindow() {
@@ -39,6 +39,17 @@ function createWindow() {
   });
   mainWindow.loadFile('index.html');
   Menu.setApplicationMenu(null);
+
+  // 关键修复：点击关闭按钮时隐藏窗口而非销毁
+  mainWindow.on('close', (e) => {
+    e.preventDefault();
+    mainWindow.hide();
+  });
+
+  // 可选：窗口完全关闭（非用户主动）时清理引用
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
 // ---------- 创建托盘图标（带文字“F”） ----------
@@ -57,13 +68,37 @@ function createTray() {
   const icon = createTrayIcon();
   tray = new Tray(icon);
   const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { mainWindow.show(); } },
+    {
+      label: '显示主窗口',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isVisible()) {
+            mainWindow.focus();
+          } else {
+            mainWindow.show();
+          }
+        } else {
+          // 若窗口被意外销毁，重新创建
+          createWindow();
+          mainWindow.show();
+        }
+      }
+    },
     { label: '退出', click: () => { app.quit(); } }
   ]);
   tray.setToolTip('基金估值速查');
   tray.setContextMenu(contextMenu);
   tray.on('click', () => {
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+      }
+    } else {
+      createWindow();
+      mainWindow.show();
+    }
   });
 }
 
@@ -146,9 +181,8 @@ async function fetchFromSina(code) {
   const response = await axios.get(url, {
     timeout: 5000,
     headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn/' },
-    responseType: 'arraybuffer'  // 获取二进制数据
+    responseType: 'arraybuffer'
   });
-  // 解码 GBK
   const text = iconv.decode(response.data, 'gbk');
   const match = text.match(/var hq_str_f_\w+="([^"]+)"/);
   if (!match) throw new Error('新浪数据解析失败');

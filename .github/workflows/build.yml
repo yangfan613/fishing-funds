@@ -1,0 +1,31 @@
+name: Build DMG
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build DMG
+        run: npm run dist
+
+      - name: Upload DMG as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: 基金估值速查-dmg
+          path: dist/*.dmg

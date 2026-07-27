@@ -10,6 +10,7 @@
   "build": {
     "appId": "com.fishing.funds",
     "productName": "基金估值速查",
+    "publish": "never",
     "mac": {
       "target": "dmg",
       "hardenedRuntime": true,

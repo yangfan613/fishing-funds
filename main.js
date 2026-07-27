@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog, Tray, nativeImage } = require('electron');
 const axios = require('axios');
 const path = require('path');
 const Store = require('electron-store');
@@ -14,18 +14,19 @@ const store = new Store({
       morningEnd: '11:31',
       afternoonStart: '13:00',
       afternoonEnd: '15:01',
-      showDockIcon: true   // 新增：是否显示Dock图标
+      showMenuBar: true   // 改为显示在菜单栏
     }
   }
 });
 
 let mainWindow;
+let tray = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 620,
     height: 740,
-    title: '基金估值速查',   // 显式设置窗口标题，解决乱码
+    title: '基金估值速查',
     titleBarStyle: 'hiddenInset',
     vibrancy: 'under-window',
     visualEffectState: 'active',
@@ -39,14 +40,45 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 }
 
-// ---------- Dock 图标控制 ----------
-function applyDockSetting() {
+// ---------- 托盘图标控制 ----------
+function createTray() {
+  // 生成一个简单的图标（纯色圆点，或使用默认图标）
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png')) || nativeImage.createEmpty();
+  // 如果找不到图标，创建一个简单的 SVG 图标
+  if (icon.isEmpty()) {
+    const svg = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="8" cy="8" r="6" fill="#007AFF" />
+    </svg>`;
+    const img = nativeImage.createFromDataURL(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+    tray = new Tray(img);
+  } else {
+    tray = new Tray(icon);
+  }
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => { mainWindow.show(); } },
+    { label: '退出', click: () => { app.quit(); } }
+  ]);
+  tray.setToolTip('基金估值速查');
+  tray.setContextMenu(contextMenu);
+  tray.on('click', () => {
+    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+  });
+}
+
+function applyMenuBarSetting() {
   if (process.platform === 'darwin') {
-    const show = store.get('settings.showDockIcon', true);
+    const show = store.get('settings.showMenuBar', true);
     if (show) {
-      app.dock.show();
-    } else {
+      // 显示在菜单栏：隐藏 Dock 图标，创建托盘
       app.dock.hide();
+      if (!tray) createTray();
+    } else {
+      // 不显示在菜单栏：显示 Dock 图标，移除托盘
+      app.dock.show();
+      if (tray) {
+        tray.destroy();
+        tray = null;
+      }
     }
   }
 }
@@ -57,8 +89,7 @@ ipcMain.handle('save-funds', (event, funds) => { store.set('funds', funds); retu
 ipcMain.handle('load-settings', () => store.get('settings', {}));
 ipcMain.handle('save-settings', (event, settings) => {
   store.set('settings', settings);
-  // 立即应用Dock设置
-  applyDockSetting();
+  applyMenuBarSetting();
   return true;
 });
 
@@ -173,7 +204,6 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   const promises = fundList.map(async (item) => {
     try {
       const val = await fetchFundValue(item.code);
-      // 如果获取成功，更新存储中的基金名称（供导出使用）
       const currentFunds = store.get('funds', []);
       const idx = currentFunds.findIndex(f => f.code === item.code);
       if (idx !== -1 && currentFunds[idx].name !== val.name) {
@@ -201,21 +231,19 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   return Promise.all(promises);
 });
 
-// ---------- 导入导出功能 ----------
+// ---------- 导入导出 ----------
 ipcMain.handle('export-funds', async () => {
   const funds = store.get('funds', []);
   if (!funds.length) {
     return { success: false, message: '没有基金可导出' };
   }
-  // 组装导出数据，格式参考用户提供
   const exportData = funds.map(f => ({
     code: f.code,
     name: f.name || '',
     cyfe: f.shares,
     cbj: f.costPrice,
-    zdfRange: 1   // 固定值，或可根据需要调整
+    zdfRange: 1
   }));
-  // 弹出保存对话框
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
     title: '导出基金列表',
     defaultPath: 'funds_export.json',
@@ -233,7 +261,6 @@ ipcMain.handle('export-funds', async () => {
 });
 
 ipcMain.handle('import-funds', async () => {
-  // 弹出打开对话框
   const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
     title: '导入基金列表',
     filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -248,9 +275,7 @@ ipcMain.handle('import-funds', async () => {
     if (!Array.isArray(imported)) {
       return { success: false, message: '文件格式错误：应为数组' };
     }
-    // 合并到当前列表
     const currentFunds = store.get('funds', []);
-    // 以 code 为键去重，导入的数据覆盖同名
     const map = new Map();
     currentFunds.forEach(f => map.set(f.code, f));
     imported.forEach(item => {
@@ -275,7 +300,6 @@ ipcMain.handle('import-funds', async () => {
 // ---------- 应用启动 ----------
 app.whenReady().then(() => {
   createWindow();
-  // 应用保存的Dock设置
-  applyDockSetting();
+  applyMenuBarSetting();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

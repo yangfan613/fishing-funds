@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>基金估值 & 盈亏</title>
+  <title>基金估值速查</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
     body {
@@ -57,8 +57,26 @@
     .btn-primary:hover { background: #0055CC; transform: scale(0.97); }
     .btn-secondary { background: #8E8E93; color: white; }
     .btn-secondary:hover { background: #6C6C70; }
+    .btn-success { background: #34C759; color: white; }
+    .btn-success:hover { background: #28A745; }
     .btn-danger { background: #FF3B30; color: white; }
     .btn-danger:hover { background: #D70015; }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .toolbar-left { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .update-time {
+      font-size: 12px;
+      opacity: 0.6;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
     .fund-list { display: flex; flex-direction: column; gap: 10px; }
     .fund-item {
       background: rgba(255,255,255,0.4);
@@ -159,9 +177,16 @@
     <button class="btn btn-primary" id="addBtn">➕ 添加</button>
   </div>
 
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-    <span id="autoStatus" style="font-size:12px; opacity:0.6;">⏳ 定时更新: 开启 (09:30-11:31, 13:00-15:01)</span>
-    <button class="btn btn-secondary" id="refreshBtn" style="padding:4px 16px;">🔄 刷新</button>
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <button class="btn btn-secondary" id="refreshBtn" style="padding:4px 16px;">🔄 刷新</button>
+      <span id="autoStatus" style="font-size:12px; opacity:0.6;">⏳ 定时更新: 开启</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="update-time" id="lastUpdateTime">最后更新: --</span>
+      <button class="btn btn-success" id="importBtn" style="padding:4px 12px;">📂 导入</button>
+      <button class="btn btn-secondary" id="exportBtn" style="padding:4px 12px;">💾 导出</button>
+    </div>
   </div>
 
   <div id="fundList" class="fund-list"></div>
@@ -171,10 +196,14 @@
   <!-- 设置模态框 -->
   <div id="settingsModal" class="modal-overlay">
     <div class="modal-content">
-      <h3>⚙️ 定时更新设置</h3>
+      <h3>⚙️ 设置</h3>
       <div class="switch-row">
         <span>启用定时更新</span>
         <div id="autoSwitch" class="switch on"><div class="slider"></div></div>
+      </div>
+      <div class="switch-row">
+        <span>显示在程序坞 (Dock)</span>
+        <div id="dockSwitch" class="switch on"><div class="slider"></div></div>
       </div>
       <label>上午时段</label>
       <div class="inline-group">
@@ -200,7 +229,7 @@
     // ---------- 全局状态 ----------
     let funds = [];
     let fundData = {};
-    let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01' };
+    let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01', showDockIcon: true };
     let lastAutoRefresh = 0;
     const AUTO_INTERVAL = 5 * 60 * 1000;
 
@@ -209,10 +238,12 @@
     const autoStatus = document.getElementById('autoStatus');
     const settingsModal = document.getElementById('settingsModal');
     const autoSwitch = document.getElementById('autoSwitch');
+    const dockSwitch = document.getElementById('dockSwitch');
     const morningStart = document.getElementById('morningStart');
     const morningEnd = document.getElementById('morningEnd');
     const afternoonStart = document.getElementById('afternoonStart');
     const afternoonEnd = document.getElementById('afternoonEnd');
+    const lastUpdateEl = document.getElementById('lastUpdateTime');
 
     function toMinutes(timeStr) {
       const [h, m] = timeStr.split(':').map(Number);
@@ -228,9 +259,16 @@
       return (mins >= ms && mins < me) || (mins >= as && mins < ae);
     }
 
+    // ---------- 更新时间显示 ----------
+    function updateLastUpdateTime() {
+      const now = new Date();
+      const timeStr = now.toLocaleString('zh-CN', { hour12: false });
+      lastUpdateEl.textContent = '最后更新: ' + timeStr;
+    }
+
     async function loadStoredData() {
       const saved = await window.api.loadFunds();
-      funds = saved && saved.length ? saved : [{ code: '110011', costPrice: 1.2, shares: 1000 }];
+      funds = saved && saved.length ? saved : [{ code: '110011', name: '', costPrice: 1.2, shares: 1000 }];
       await window.api.saveFunds(funds);
 
       const savedSettings = await window.api.loadSettings();
@@ -241,7 +279,7 @@
       }
       applySettingsUI();
       renderList();
-      refreshAll();
+      refreshAll(); // 刷新成功后会调用 updateLastUpdateTime
     }
 
     async function saveSettings() {
@@ -250,6 +288,7 @@
 
     function applySettingsUI() {
       autoSwitch.className = 'switch' + (settings.autoUpdate ? ' on' : '');
+      dockSwitch.className = 'switch' + (settings.showDockIcon !== false ? ' on' : '');
       morningStart.value = settings.morningStart;
       morningEnd.value = settings.morningEnd;
       afternoonStart.value = settings.afternoonStart;
@@ -282,6 +321,8 @@
         });
         fundData = newData;
         renderList();
+        // 刷新成功后更新时间
+        updateLastUpdateTime();
       } catch (e) {
         console.error(e);
       } finally {
@@ -350,7 +391,16 @@
         alert('该基金已存在');
         return;
       }
-      funds.push({ code, costPrice: cost, shares });
+      try {
+        const info = await window.api.fetchFund(code);
+        if (info.status === 'success') {
+          funds.push({ code, name: info.name, costPrice: cost, shares });
+        } else {
+          funds.push({ code, name: '', costPrice: cost, shares });
+        }
+      } catch {
+        funds.push({ code, name: '', costPrice: cost, shares });
+      }
       await window.api.saveFunds(funds);
       document.getElementById('inputCode').value = '';
       document.getElementById('inputCost').value = '';
@@ -388,6 +438,26 @@
       refreshAll();
     }
 
+    // ---------- 导入导出 ----------
+    async function importFunds() {
+      const result = await window.api.importFunds();
+      if (result.success) {
+        alert(result.message);
+        const saved = await window.api.loadFunds();
+        funds = saved;
+        renderList();
+        refreshAll();
+      } else {
+        alert('导入失败: ' + result.message);
+      }
+    }
+
+    async function exportFunds() {
+      const result = await window.api.exportFunds();
+      alert(result.message);
+    }
+
+    // ---------- 设置模态框 ----------
     function openSettings() {
       window.api.loadSettings().then(s => {
         if (s) settings = { ...settings, ...s };
@@ -401,6 +471,10 @@
 
     autoSwitch.addEventListener('click', () => {
       settings.autoUpdate = !settings.autoUpdate;
+      applySettingsUI();
+    });
+    dockSwitch.addEventListener('click', () => {
+      settings.showDockIcon = !settings.showDockIcon;
       applySettingsUI();
     });
 
@@ -431,8 +505,8 @@
       refreshAll();
       lastAutoRefresh = now;
     }
-
     setInterval(autoRefreshCheck, 30000);
+
     document.getElementById('refreshBtn').addEventListener('click', () => {
       refreshAll();
       lastAutoRefresh = Date.now();
@@ -441,6 +515,8 @@
     document.querySelectorAll('.add-card input').forEach(inp => {
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addFund(); });
     });
+    document.getElementById('importBtn').addEventListener('click', importFunds);
+    document.getElementById('exportBtn').addEventListener('click', exportFunds);
     settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
 
     loadStoredData();

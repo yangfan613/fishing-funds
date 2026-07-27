@@ -42,7 +42,6 @@ function createWindow() {
   mainWindow.loadFile('index.html');
   Menu.setApplicationMenu(null);
 
-  // 关闭按钮 → 隐藏窗口（不退出）
   mainWindow.on('close', (e) => {
     e.preventDefault();
     mainWindow.hide();
@@ -53,15 +52,34 @@ function createWindow() {
   });
 }
 
-// ---------- 托盘图标（黑色方块 + 白色“估”字） ----------
+// ---------- 托盘图标生成（可靠方法：纯色 PNG + 模板标记） ----------
 function createTrayIcon() {
+  // 方法1：使用 SVG（部分 macOS 版本不兼容，作为备选）
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
       <rect width="18" height="18" rx="2" fill="#000000"/>
       <text x="9" y="13" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
     </svg>
   `;
-  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  let image = nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  
+  // 如果 SVG 创建失败（返回空），则使用纯色 PNG 像素数据（保证显示）
+  if (image.isEmpty()) {
+    // 生成一个 18x18 的黑色方块（RGBA）
+    const size = 18;
+    const buffer = Buffer.alloc(size * size * 4);
+    for (let i = 0; i < buffer.length; i += 4) {
+      buffer[i] = 0;       // R
+      buffer[i+1] = 0;     // G
+      buffer[i+2] = 0;     // B
+      buffer[i+3] = 255;   // A (不透明)
+    }
+    image = nativeImage.createFromBuffer(buffer, { width: size, height: size });
+  }
+  
+  // 设置为模板图像，让 macOS 自动适配深浅色菜单栏
+  image.setTemplateImage(true);
+  return image;
 }
 
 function createTray() {
@@ -239,7 +257,6 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   const promises = fundList.map(async (item) => {
     try {
       const val = await fetchFundValue(item.code);
-      // 更新存储中的基金名称
       const currentFunds = store.get('funds', []);
       const idx = currentFunds.findIndex(f => f.code === item.code);
       if (idx !== -1 && currentFunds[idx].name !== val.name) {
@@ -315,7 +332,6 @@ ipcMain.handle('import-funds', async () => {
     const currentFunds = store.get('funds', []);
     const map = new Map();
     currentFunds.forEach(f => map.set(f.code, f));
-    // 同时合并分组
     const allGroups = new Set(store.get('groups', ['默认分组']));
     imported.forEach(item => {
       if (item.code) {
@@ -345,6 +361,5 @@ app.whenReady().then(() => {
   applyMenuBarSetting();
 });
 app.on('window-all-closed', () => {
-  // 在 macOS 上，通常不退出，但这里保持默认行为（菜单栏退出已用 app.exit）
   if (process.platform !== 'darwin') app.quit();
 });

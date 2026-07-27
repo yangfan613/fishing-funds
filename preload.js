@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   loadFunds: () => ipcRenderer.invoke('load-funds'),
   saveFunds: (funds) => ipcRenderer.invoke('save-funds', funds),
   loadSettings: () => ipcRenderer.invoke('load-settings'),
-  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings)
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  exportFunds: () => ipcRenderer.invoke('export-funds'),
+  importFunds: () => ipcRenderer.invoke('import-funds')
 });

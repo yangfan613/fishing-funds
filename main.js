@@ -4,7 +4,6 @@ const path = require('path');
 const Store = require('electron-store');
 const fs = require('fs');
 const iconv = require('iconv-lite');
-const sharp = require('sharp');
 
 const store = new Store({
   name: 'funds-data',
@@ -53,71 +52,66 @@ function createWindow() {
   });
 }
 
-// ---------- 托盘图标生成（sharp 生成带文字的 PNG） ----------
-async function createTrayIcon() {
-  const width = 18;
-  const height = 18;
+// ---------- 托盘图标（纯 SVG + 备选纯色） ----------
+function createTrayIcon() {
+  // SVG 黑色方块 + 白色"估"字
   const svg = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${width}" height="${height}" rx="2" fill="#000000"/>
-      <text x="${width/2}" y="${height-5}" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+      <rect width="18" height="18" rx="2" fill="#000000"/>
+      <text x="9" y="13" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
     </svg>
   `;
-  try {
-    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
-    const image = nativeImage.createFromBuffer(buffer);
-    image.setTemplateImage(true); // 深浅色自适应
-    return image;
-  } catch (error) {
-    console.warn('⚠️ SVG 生成图标失败，使用纯色备选', error);
-    // 备选：纯黑色方块
-    const fallbackBuffer = Buffer.alloc(width * height * 4);
-    for (let i = 0; i < fallbackBuffer.length; i += 4) {
-      fallbackBuffer[i] = 0;
-      fallbackBuffer[i+1] = 0;
-      fallbackBuffer[i+2] = 0;
-      fallbackBuffer[i+3] = 255;
+  let image = nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+
+  // 如果 SVG 无法加载（某些 macOS 版本），回退到纯黑色方块
+  if (image.isEmpty()) {
+    const size = 18;
+    const buffer = Buffer.alloc(size * size * 4);
+    for (let i = 0; i < buffer.length; i += 4) {
+      buffer[i] = 0;
+      buffer[i+1] = 0;
+      buffer[i+2] = 0;
+      buffer[i+3] = 255;
     }
-    const image = nativeImage.createFromBuffer(fallbackBuffer, { width, height });
-    image.setTemplateImage(true);
-    return image;
+    image = nativeImage.createFromBuffer(buffer, { width: size, height: size });
   }
+
+  // 模板图像，自动适配深浅色菜单栏
+  image.setTemplateImage(true);
+  return image;
 }
 
 function createTray() {
-  createTrayIcon().then(icon => {
-    tray = new Tray(icon);
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: '显示主窗口',
-        click: () => {
-          if (mainWindow) {
-            mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
-          } else {
-            createWindow();
-            mainWindow.show();
-          }
-        }
-      },
-      {
-        label: '退出',
-        click: () => {
-          app.exit(0);
+  const icon = createTrayIcon();
+  tray = new Tray(icon);
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示主窗口',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
+        } else {
+          createWindow();
+          mainWindow.show();
         }
       }
-    ]);
-    tray.setToolTip('基金估值速查');
-    tray.setContextMenu(contextMenu);
-    tray.on('click', () => {
-      if (mainWindow) {
-        mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-      } else {
-        createWindow();
-        mainWindow.show();
+    },
+    {
+      label: '退出',
+      click: () => {
+        app.exit(0);
       }
-    });
-  }).catch(err => {
-    console.error('创建托盘失败:', err);
+    }
+  ]);
+  tray.setToolTip('基金估值速查');
+  tray.setContextMenu(contextMenu);
+  tray.on('click', () => {
+    if (mainWindow) {
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    } else {
+      createWindow();
+      mainWindow.show();
+    }
   });
 }
 

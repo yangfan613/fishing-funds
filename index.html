@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <title>基金估值速查</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     body {
       background: transparent;
       padding: 16px;
@@ -12,6 +12,7 @@
       -webkit-backdrop-filter: blur(20px);
       background-color: rgba(255, 255, 255, 0.7);
       min-height: 100vh;
+      user-select: none;
     }
     @media (prefers-color-scheme: dark) {
       body { background-color: rgba(30, 30, 30, 0.85); color: #eee; }
@@ -19,14 +20,22 @@
       input, .modal-content { background: #444; color: #eee; border-color: #555; }
       .modal-content input { background: #333; color: #fff; }
     }
-    .header-row {
+    .drag-area {
+      -webkit-app-region: drag;
+      padding: 8px 0 4px 0;
+      margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
     }
-    .header-row h2 { font-size: 18px; font-weight: 600; }
-    .icon-btn {
+    .drag-area h2 {
+      -webkit-app-region: no-drag;
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+    }
+    .drag-area .icon-btn {
+      -webkit-app-region: no-drag;
       background: none;
       border: none;
       font-size: 22px;
@@ -36,8 +45,10 @@
       border-radius: 6px;
       transition: 0.2s;
     }
-    .icon-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
+    .drag-area .icon-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
+
     .add-card {
+      -webkit-app-region: no-drag;
       background: rgba(255,255,255,0.4);
       backdrop-filter: blur(10px);
       border-radius: 12px;
@@ -48,10 +59,26 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .add-card input { flex: 1; min-width: 70px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); padding: 8px 12px; font-size: 14px; outline: none; background: rgba(255,255,255,0.6); backdrop-filter: blur(10px); }
+    .add-card input {
+      flex: 1;
+      min-width: 70px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.1);
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(10px);
+    }
     .add-card input:focus { border-color: #007AFF; background: rgba(255,255,255,0.9); }
     .add-card button, .btn {
-      border-radius: 10px; border: none; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
+      border-radius: 10px;
+      border: none;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
     }
     .btn-primary { background: #007AFF; color: white; }
     .btn-primary:hover { background: #0055CC; transform: scale(0.97); }
@@ -61,7 +88,13 @@
     .btn-success:hover { background: #28A745; }
     .btn-danger { background: #FF3B30; color: white; }
     .btn-danger:hover { background: #D70015; }
+    .btn-warning { background: #FF9500; color: white; }
+    .btn-warning:hover { background: #E68A00; }
+    .btn-active { background: #FF2D55; color: white; }
+    .btn-active:hover { background: #D70035; }
+
     .toolbar {
+      -webkit-app-region: no-drag;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -69,15 +102,13 @@
       flex-wrap: wrap;
       gap: 6px;
     }
-    .toolbar-left { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .toolbar-left, .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .update-time {
       font-size: 12px;
       opacity: 0.6;
-      margin-left: 8px;
       white-space: nowrap;
     }
-    .fund-list { display: flex; flex-direction: column; gap: 10px; }
+    .fund-list { display: flex; flex-direction: column; gap: 10px; -webkit-app-region: no-drag; }
     .fund-item {
       background: rgba(255,255,255,0.4);
       backdrop-filter: blur(10px);
@@ -88,20 +119,50 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      position: relative;
     }
     .fund-row { display: flex; justify-content: space-between; align-items: center; }
+    .fund-left { display: flex; align-items: center; gap: 10px; }
+    .fund-left input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      display: none; /* 默认隐藏，删除模式显示 */
+    }
+    .fund-left input[type="checkbox"].show { display: inline-block; }
     .fund-name { font-weight: 600; font-size: 16px; }
-    .fund-code { opacity: 0.6; font-size: 12px; margin-left: 8px; }
+    .fund-code { opacity: 0.6; font-size: 12px; margin-left: 6px; }
     .fund-price { font-size: 18px; font-weight: 600; }
     .fund-info { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; }
     .fund-info span { opacity: 0.8; }
     .fund-info .value { font-weight: 500; opacity: 1; }
     .profit { font-weight: 600; }
-    .profit.positive { color: #34C759; }
-    .profit.negative { color: #FF3B30; }
-    .actions { display: flex; gap: 6px; }
-    .actions button { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; }
-    .status-bar { font-size: 12px; opacity: 0.5; text-align: center; margin-top: 8px; }
+    .positive { color: #FF3B30; }
+    .negative { color: #34C759; }
+    .edit-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      opacity: 0.5;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: 0.2s;
+      display: none; /* 默认隐藏，编辑模式显示 */
+    }
+    .edit-btn.show { display: inline-block; }
+    .edit-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; }
+    .batch-bar {
+      -webkit-app-region: no-drag;
+      margin-top: 8px;
+      display: none;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .batch-bar.show { display: flex; }
+    .batch-bar span { font-size: 13px; opacity: 0.7; }
+
     .modal-overlay {
       position: fixed; top:0; left:0; width:100%; height:100%;
       background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
@@ -116,27 +177,16 @@
     }
     .modal-content h3 { margin-bottom: 16px; }
     .modal-content label { display: block; margin: 12px 0 4px; font-weight: 500; }
-    .modal-content .inline-group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .modal-content .inline-group input {
-      flex: 1;
-      padding: 6px 10px;
+    .modal-content input {
+      width: 100%;
+      padding: 8px 12px;
       border-radius: 8px;
       border: 1px solid #ccc;
       background: #f5f5f5;
       font-size: 14px;
     }
-    .modal-content .inline-group span { opacity: 0.6; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
-    .switch-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
+    .switch-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .switch {
       position: relative;
       width: 44px;
@@ -165,11 +215,13 @@
   </style>
 </head>
 <body>
-  <div class="header-row">
+  <!-- 可拖动区域 -->
+  <div class="drag-area">
     <h2>📈 基金估值</h2>
     <button class="icon-btn" id="settingsBtn">⚙️</button>
   </div>
 
+  <!-- 添加区域 -->
   <div class="add-card">
     <input id="inputCode" placeholder="代码" style="flex:0.8;">
     <input id="inputCost" placeholder="成本价" style="flex:0.6;">
@@ -177,10 +229,13 @@
     <button class="btn btn-primary" id="addBtn">➕ 添加</button>
   </div>
 
+  <!-- 工具栏 -->
   <div class="toolbar">
     <div class="toolbar-left">
       <button class="btn btn-secondary" id="refreshBtn" style="padding:4px 16px;">🔄 刷新</button>
       <span id="autoStatus" style="font-size:12px; opacity:0.6;">⏳ 定时更新: 开启</span>
+      <button class="btn btn-secondary" id="editModeBtn" style="padding:4px 12px;">✎ 编辑</button>
+      <button class="btn btn-secondary" id="deleteModeBtn" style="padding:4px 12px;">🗑️ 删除</button>
     </div>
     <div class="toolbar-right">
       <span class="update-time" id="lastUpdateTime">最后更新: --</span>
@@ -189,8 +244,17 @@
     </div>
   </div>
 
+  <!-- 基金列表 -->
   <div id="fundList" class="fund-list"></div>
   <div id="loading" class="loading">⏳ 加载估值中...</div>
+
+  <!-- 批量删除栏 -->
+  <div id="batchBar" class="batch-bar">
+    <span id="selectedCount">已选 0 项</span>
+    <button class="btn btn-danger" id="batchDeleteBtn">删除选中</button>
+    <button class="btn btn-secondary" id="cancelDeleteBtn">取消</button>
+  </div>
+
   <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾） | 仅供参考</div>
 
   <!-- 设置模态框 -->
@@ -202,20 +266,20 @@
         <div id="autoSwitch" class="switch on"><div class="slider"></div></div>
       </div>
       <div class="switch-row">
-        <span>显示在程序坞 (Dock)</span>
-        <div id="dockSwitch" class="switch on"><div class="slider"></div></div>
+        <span>显示在菜单栏 (状态栏)</span>
+        <div id="menuBarSwitch" class="switch on"><div class="slider"></div></div>
       </div>
       <label>上午时段</label>
-      <div class="inline-group">
-        <input type="time" id="morningStart" value="09:30" step="60">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="time" id="morningStart" value="09:30" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
         <span>至</span>
-        <input type="time" id="morningEnd" value="11:31" step="60">
+        <input type="time" id="morningEnd" value="11:31" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
       </div>
       <label>下午时段</label>
-      <div class="inline-group">
-        <input type="time" id="afternoonStart" value="13:00" step="60">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="time" id="afternoonStart" value="13:00" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
         <span>至</span>
-        <input type="time" id="afternoonEnd" value="15:01" step="60">
+        <input type="time" id="afternoonEnd" value="15:01" step="60" style="flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ccc; background:#f5f5f5; font-size:14px;">
       </div>
       <div style="font-size:12px; opacity:0.6; margin-top:12px;">自动刷新间隔：5分钟（仅在时段内生效）</div>
       <div class="modal-actions">
@@ -225,26 +289,58 @@
     </div>
   </div>
 
+  <!-- 编辑模态框 -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>✎ 编辑持仓</h3>
+      <label>基金代码</label>
+      <input id="editCode" disabled style="background:#e9e9e9; opacity:0.7;">
+      <label>成本价</label>
+      <input id="editCost" type="number" step="0.0001" placeholder="输入成本价">
+      <label>持有份额</label>
+      <input id="editShares" type="number" step="0.01" placeholder="输入份额">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="editCancel">取消</button>
+        <button class="btn btn-primary" id="editSave">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ---------- 全局状态 ----------
     let funds = [];
     let fundData = {};
-    let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01', showDockIcon: true };
+    let settings = { autoUpdate: true, morningStart: '09:30', morningEnd: '11:31', afternoonStart: '13:00', afternoonEnd: '15:01', showMenuBar: true };
     let lastAutoRefresh = 0;
     const AUTO_INTERVAL = 5 * 60 * 1000;
+    let editingIndex = -1;
+    let editModeActive = false;
+    let deleteModeActive = false;
 
+    // DOM 元素
     const listEl = document.getElementById('fundList');
     const loadingEl = document.getElementById('loading');
     const autoStatus = document.getElementById('autoStatus');
     const settingsModal = document.getElementById('settingsModal');
+    const editModal = document.getElementById('editModal');
     const autoSwitch = document.getElementById('autoSwitch');
-    const dockSwitch = document.getElementById('dockSwitch');
+    const menuBarSwitch = document.getElementById('menuBarSwitch');
     const morningStart = document.getElementById('morningStart');
     const morningEnd = document.getElementById('morningEnd');
     const afternoonStart = document.getElementById('afternoonStart');
     const afternoonEnd = document.getElementById('afternoonEnd');
     const lastUpdateEl = document.getElementById('lastUpdateTime');
+    const selectedCount = document.getElementById('selectedCount');
+    const batchBar = document.getElementById('batchBar');
+    const editModeBtn = document.getElementById('editModeBtn');
+    const deleteModeBtn = document.getElementById('deleteModeBtn');
 
+    // 编辑框
+    const editCode = document.getElementById('editCode');
+    const editCost = document.getElementById('editCost');
+    const editShares = document.getElementById('editShares');
+
+    // ---------- 时间工具 ----------
     function toMinutes(timeStr) {
       const [h, m] = timeStr.split(':').map(Number);
       return h * 60 + m;
@@ -259,13 +355,14 @@
       return (mins >= ms && mins < me) || (mins >= as && mins < ae);
     }
 
-    // ---------- 更新时间显示 ----------
+    // ---------- 更新时间 ----------
     function updateLastUpdateTime() {
       const now = new Date();
       const timeStr = now.toLocaleString('zh-CN', { hour12: false });
       lastUpdateEl.textContent = '最后更新: ' + timeStr;
     }
 
+    // ---------- 加载存储 ----------
     async function loadStoredData() {
       const saved = await window.api.loadFunds();
       funds = saved && saved.length ? saved : [{ code: '110011', name: '', costPrice: 1.2, shares: 1000 }];
@@ -279,16 +376,17 @@
       }
       applySettingsUI();
       renderList();
-      refreshAll(); // 刷新成功后会调用 updateLastUpdateTime
+      refreshAll();
     }
 
+    // ---------- 保存设置 ----------
     async function saveSettings() {
       await window.api.saveSettings(settings);
     }
 
     function applySettingsUI() {
       autoSwitch.className = 'switch' + (settings.autoUpdate ? ' on' : '');
-      dockSwitch.className = 'switch' + (settings.showDockIcon !== false ? ' on' : '');
+      menuBarSwitch.className = 'switch' + (settings.showMenuBar !== false ? ' on' : '');
       morningStart.value = settings.morningStart;
       morningEnd.value = settings.morningEnd;
       afternoonStart.value = settings.afternoonStart;
@@ -304,6 +402,7 @@
       }
     }
 
+    // ---------- 刷新估值 ----------
     async function refreshAll() {
       if (!funds.length) return;
       loadingEl.style.display = 'block';
@@ -321,7 +420,6 @@
         });
         fundData = newData;
         renderList();
-        // 刷新成功后更新时间
         updateLastUpdateTime();
       } catch (e) {
         console.error(e);
@@ -331,9 +429,11 @@
       }
     }
 
+    // ---------- 渲染列表 ----------
     function renderList() {
       if (!funds.length) {
         listEl.innerHTML = '<div style="text-align:center;opacity:0.5;padding:30px;">暂无基金，请添加</div>';
+        updateSelectedCount();
         return;
       }
       let html = '';
@@ -344,6 +444,7 @@
         const name = data.name || fund.name || fund.code;
         const cost = fund.costPrice;
         const shares = fund.shares;
+
         let profit = '--', profitRate = '--', profitClass = '';
         if (data.gsz !== undefined && cost > 0) {
           const p = (data.gsz - cost) * shares;
@@ -353,14 +454,22 @@
           profitClass = p >= 0 ? 'positive' : 'negative';
         }
         const sourceTag = data.source ? ` (${data.source})` : '';
+        let gszzlClass = 'value';
+        if (gszzl !== '--') {
+          gszzlClass += gszzl >= 0 ? ' positive' : ' negative';
+        }
+
         html += `
-          <div class="fund-item">
+          <div class="fund-item" data-index="${index}">
             <div class="fund-row">
-              <span class="fund-name">${name} <span class="fund-code">${fund.code}${sourceTag}</span></span>
+              <div class="fund-left">
+                <input type="checkbox" class="fund-checkbox" data-index="${index}" ${deleteModeActive ? 'style="display:inline-block"' : ''}>
+                <span class="fund-name">${name} <span class="fund-code">${fund.code}${sourceTag}</span></span>
+              </div>
               <span class="fund-price">${gsz}</span>
             </div>
             <div class="fund-info">
-              <span>涨跌: <span class="value ${gszzl >= 0 ? 'positive' : 'negative'}">${gszzl >= 0 ? '+' : ''}${gszzl}%</span></span>
+              <span>涨跌: <span class="${gszzlClass}">${gszzl >= 0 ? '+' : ''}${gszzl}%</span></span>
               <span>成本: <span class="value">${cost}</span></span>
               <span>份额: <span class="value">${shares}</span></span>
               <span>盈亏: <span class="value profit ${profitClass}">${profit}</span></span>
@@ -368,17 +477,22 @@
             </div>
             <div class="fund-row" style="margin-top:4px;">
               <span style="font-size:11px;opacity:0.4;">${data.gztime || ''}</span>
-              <div class="actions">
-                <button class="btn-secondary" onclick="editFund(${index})">✎ 编辑</button>
-                <button class="btn-danger" onclick="removeFund(${index})">✕ 删除</button>
-              </div>
+              <button class="edit-btn ${editModeActive ? 'show' : ''}" onclick="openEditModal(${index})">✎ 编辑</button>
             </div>
           </div>
         `;
       });
       listEl.innerHTML = html;
+      updateSelectedCount();
     }
 
+    // ---------- 更新选中计数 ----------
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll('.fund-checkbox:checked');
+      selectedCount.textContent = `已选 ${checkboxes.length} 项`;
+    }
+
+    // ---------- 添加基金 ----------
     async function addFund() {
       const code = document.getElementById('inputCode').value.trim();
       const cost = parseFloat(document.getElementById('inputCost').value);
@@ -409,31 +523,90 @@
       refreshAll();
     }
 
-    async function removeFund(index) {
-      if (!confirm('确认删除？')) return;
-      funds.splice(index, 1);
-      await window.api.saveFunds(funds);
-      renderList();
-      refreshAll();
-    }
-
-    let editingIndex = -1;
-    function editFund(index) {
+    // ---------- 编辑模态框 ----------
+    function openEditModal(index) {
       editingIndex = index;
       const f = funds[index];
-      const cost = prompt('输入新成本价:', f.costPrice);
-      if (cost === null) return;
-      const shares = prompt('输入新持有份额:', f.shares);
-      if (shares === null) return;
-      const newCost = parseFloat(cost);
-      const newShares = parseFloat(shares);
-      if (isNaN(newCost) || isNaN(newShares) || newCost <= 0 || newShares <= 0) {
+      editCode.value = f.code;
+      editCost.value = f.costPrice;
+      editShares.value = f.shares;
+      editModal.classList.add('active');
+    }
+
+    async function saveEdit() {
+      const cost = parseFloat(editCost.value);
+      const shares = parseFloat(editShares.value);
+      if (isNaN(cost) || isNaN(shares) || cost <= 0 || shares <= 0) {
         alert('请输入有效的正数');
         return;
       }
-      funds[index].costPrice = newCost;
-      funds[index].shares = newShares;
-      window.api.saveFunds(funds);
+      if (editingIndex >= 0 && editingIndex < funds.length) {
+        funds[editingIndex].costPrice = cost;
+        funds[editingIndex].shares = shares;
+        await window.api.saveFunds(funds);
+        editModal.classList.remove('active');
+        renderList();
+        refreshAll();
+      }
+    }
+
+    function closeEditModal() {
+      editModal.classList.remove('active');
+    }
+
+    // ---------- 编辑模式切换 ----------
+    function toggleEditMode() {
+      editModeActive = !editModeActive;
+      if (editModeActive) {
+        // 如果删除模式开启，先关闭
+        if (deleteModeActive) toggleDeleteMode();
+        editModeBtn.textContent = '✎ 编辑(开)';
+        editModeBtn.classList.add('btn-active');
+        editModeBtn.classList.remove('btn-secondary');
+      } else {
+        editModeBtn.textContent = '✎ 编辑';
+        editModeBtn.classList.remove('btn-active');
+        editModeBtn.classList.add('btn-secondary');
+      }
+      renderList(); // 重新渲染显示/隐藏编辑按钮
+    }
+
+    // ---------- 删除模式切换 ----------
+    function toggleDeleteMode() {
+      deleteModeActive = !deleteModeActive;
+      if (deleteModeActive) {
+        if (editModeActive) toggleEditMode(); // 关闭编辑模式
+        deleteModeBtn.textContent = '🗑️ 删除(开)';
+        deleteModeBtn.classList.add('btn-active');
+        deleteModeBtn.classList.remove('btn-secondary');
+        batchBar.classList.add('show');
+      } else {
+        deleteModeBtn.textContent = '🗑️ 删除';
+        deleteModeBtn.classList.remove('btn-active');
+        deleteModeBtn.classList.add('btn-secondary');
+        batchBar.classList.remove('show');
+        // 取消所有复选框选中
+        document.querySelectorAll('.fund-checkbox').forEach(cb => cb.checked = false);
+        updateSelectedCount();
+      }
+      renderList(); // 重新渲染显示/隐藏复选框
+    }
+
+    // ---------- 批量删除 ----------
+    async function batchDelete() {
+      const checkboxes = document.querySelectorAll('.fund-checkbox:checked');
+      if (checkboxes.length === 0) {
+        alert('请至少选择一项');
+        return;
+      }
+      if (!confirm(`确认删除选中的 ${checkboxes.length} 项基金？`)) return;
+      const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a,b) => b - a);
+      for (const idx of indices) {
+        funds.splice(idx, 1);
+      }
+      await window.api.saveFunds(funds);
+      // 退出删除模式
+      toggleDeleteMode(); // 关闭删除模式
       renderList();
       refreshAll();
     }
@@ -469,12 +642,13 @@
       settingsModal.classList.remove('active');
     }
 
+    // ---------- 事件绑定 ----------
     autoSwitch.addEventListener('click', () => {
       settings.autoUpdate = !settings.autoUpdate;
       applySettingsUI();
     });
-    dockSwitch.addEventListener('click', () => {
-      settings.showDockIcon = !settings.showDockIcon;
+    menuBarSwitch.addEventListener('click', () => {
+      settings.showMenuBar = !settings.showMenuBar;
       applySettingsUI();
     });
 
@@ -493,10 +667,32 @@
       updateStatusText();
       lastAutoRefresh = 0;
     });
-
     document.getElementById('settingsCancel').addEventListener('click', closeSettings);
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
+    // 编辑模态框
+    document.getElementById('editCancel').addEventListener('click', closeEditModal);
+    document.getElementById('editSave').addEventListener('click', saveEdit);
+    editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditModal(); });
+
+    // 编辑/删除模式按钮
+    editModeBtn.addEventListener('click', toggleEditMode);
+    deleteModeBtn.addEventListener('click', toggleDeleteMode);
+
+    // 批量删除
+    document.getElementById('batchDeleteBtn').addEventListener('click', batchDelete);
+    document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
+      if (deleteModeActive) toggleDeleteMode();
+    });
+
+    // 监听复选框变化更新计数（事件委托）
+    listEl.addEventListener('change', (e) => {
+      if (e.target.classList.contains('fund-checkbox')) {
+        updateSelectedCount();
+      }
+    });
+
+    // 定时刷新
     function autoRefreshCheck() {
       if (!settings.autoUpdate) return;
       if (!isInTimeRange()) return;
@@ -507,6 +703,7 @@
     }
     setInterval(autoRefreshCheck, 30000);
 
+    // 手动刷新
     document.getElementById('refreshBtn').addEventListener('click', () => {
       refreshAll();
       lastAutoRefresh = Date.now();
@@ -517,8 +714,8 @@
     });
     document.getElementById('importBtn').addEventListener('click', importFunds);
     document.getElementById('exportBtn').addEventListener('click', exportFunds);
-    settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
 
+    // 启动
     loadStoredData();
   </script>
 </body>

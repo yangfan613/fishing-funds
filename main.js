@@ -4,6 +4,7 @@ const path = require('path');
 const Store = require('electron-store');
 const fs = require('fs');
 const iconv = require('iconv-lite');
+const sharp = require('sharp');
 
 const store = new Store({
   name: 'funds-data',
@@ -52,67 +53,71 @@ function createWindow() {
   });
 }
 
-// ---------- 托盘图标生成（可靠方法：纯色 PNG + 模板标记） ----------
-function createTrayIcon() {
-  // 方法1：使用 SVG（部分 macOS 版本不兼容，作为备选）
+// ---------- 托盘图标生成（sharp 生成带文字的 PNG） ----------
+async function createTrayIcon() {
+  const width = 18;
+  const height = 18;
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
-      <rect width="18" height="18" rx="2" fill="#000000"/>
-      <text x="9" y="13" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="${height}" rx="2" fill="#000000"/>
+      <text x="${width/2}" y="${height-5}" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
     </svg>
   `;
-  let image = nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
-  
-  // 如果 SVG 创建失败（返回空），则使用纯色 PNG 像素数据（保证显示）
-  if (image.isEmpty()) {
-    // 生成一个 18x18 的黑色方块（RGBA）
-    const size = 18;
-    const buffer = Buffer.alloc(size * size * 4);
-    for (let i = 0; i < buffer.length; i += 4) {
-      buffer[i] = 0;       // R
-      buffer[i+1] = 0;     // G
-      buffer[i+2] = 0;     // B
-      buffer[i+3] = 255;   // A (不透明)
+  try {
+    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    const image = nativeImage.createFromBuffer(buffer);
+    image.setTemplateImage(true); // 深浅色自适应
+    return image;
+  } catch (error) {
+    console.warn('⚠️ SVG 生成图标失败，使用纯色备选', error);
+    // 备选：纯黑色方块
+    const fallbackBuffer = Buffer.alloc(width * height * 4);
+    for (let i = 0; i < fallbackBuffer.length; i += 4) {
+      fallbackBuffer[i] = 0;
+      fallbackBuffer[i+1] = 0;
+      fallbackBuffer[i+2] = 0;
+      fallbackBuffer[i+3] = 255;
     }
-    image = nativeImage.createFromBuffer(buffer, { width: size, height: size });
+    const image = nativeImage.createFromBuffer(fallbackBuffer, { width, height });
+    image.setTemplateImage(true);
+    return image;
   }
-  
-  // 设置为模板图像，让 macOS 自动适配深浅色菜单栏
-  image.setTemplateImage(true);
-  return image;
 }
 
 function createTray() {
-  const icon = createTrayIcon();
-  tray = new Tray(icon);
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '显示主窗口',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
-        } else {
-          createWindow();
-          mainWindow.show();
+  createTrayIcon().then(icon => {
+    tray = new Tray(icon);
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: '显示主窗口',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
+          } else {
+            createWindow();
+            mainWindow.show();
+          }
+        }
+      },
+      {
+        label: '退出',
+        click: () => {
+          app.exit(0);
         }
       }
-    },
-    {
-      label: '退出',
-      click: () => {
-        app.exit(0); // 强制退出
+    ]);
+    tray.setToolTip('基金估值速查');
+    tray.setContextMenu(contextMenu);
+    tray.on('click', () => {
+      if (mainWindow) {
+        mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+      } else {
+        createWindow();
+        mainWindow.show();
       }
-    }
-  ]);
-  tray.setToolTip('基金估值速查');
-  tray.setContextMenu(contextMenu);
-  tray.on('click', () => {
-    if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-    } else {
-      createWindow();
-      mainWindow.show();
-    }
+    });
+  }).catch(err => {
+    console.error('创建托盘失败:', err);
   });
 }
 

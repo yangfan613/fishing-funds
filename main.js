@@ -39,29 +39,24 @@ function createWindow() {
   });
   mainWindow.loadFile('index.html');
   Menu.setApplicationMenu(null);
-
-  // 关键修复：点击关闭按钮时隐藏窗口而非销毁
   mainWindow.on('close', (e) => {
     e.preventDefault();
     mainWindow.hide();
   });
-
-  // 可选：窗口完全关闭（非用户主动）时清理引用
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// ---------- 创建托盘图标（带文字“F”） ----------
+// ---------- 托盘图标（黑色方块 + 白色“估”字） ----------
 function createTrayIcon() {
   const svg = `
-    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-      <rect width="18" height="18" rx="3" fill="#007AFF"/>
-      <text x="9" y="13" font-family="Arial" font-size="12" font-weight="bold" fill="white" text-anchor="middle">F</text>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+      <rect width="18" height="18" rx="2" fill="#000000"/>
+      <text x="9" y="13" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">估</text>
     </svg>
   `;
-  const image = nativeImage.createFromDataURL(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
-  return image;
+  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
 }
 
 function createTray() {
@@ -78,7 +73,6 @@ function createTray() {
             mainWindow.show();
           }
         } else {
-          // 若窗口被意外销毁，重新创建
           createWindow();
           mainWindow.show();
         }
@@ -128,9 +122,7 @@ ipcMain.handle('save-settings', (event, settings) => {
   return true;
 });
 
-// ---------- 数据源获取函数 ----------
-
-// 1. 天天基金（JSONP，UTF-8）
+// ---------- 数据源（天天、腾讯、新浪） ----------
 async function fetchFromTiantian(code) {
   const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
   const response = await axios.get(url, {
@@ -152,7 +144,6 @@ async function fetchFromTiantian(code) {
   };
 }
 
-// 2. 腾讯证券（JSON，UTF-8）
 async function fetchFromTencent(code) {
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fund/fundInfo?code=jj${code}`;
   const response = await axios.get(url, {
@@ -175,7 +166,6 @@ async function fetchFromTencent(code) {
   };
 }
 
-// 3. 新浪基金（CSV，GBK 编码）
 async function fetchFromSina(code) {
   const url = `https://hq.sinajs.cn/list=f_${code}`;
   const response = await axios.get(url, {
@@ -203,7 +193,6 @@ async function fetchFromSina(code) {
   };
 }
 
-// ---------- 统一获取（带容灾） ----------
 const SOURCES = [
   { name: 'tiantian', fetch: fetchFromTiantian },
   { name: 'tencent', fetch: fetchFromTencent },
@@ -228,7 +217,6 @@ async function fetchFundValue(code) {
   throw new Error(`所有数据源均失败: ${lastError?.message || '未知错误'}`);
 }
 
-// ---------- IPC 处理 ----------
 ipcMain.handle('fetch-fund', async (event, code) => {
   try {
     const data = await fetchFundValue(code);
@@ -269,7 +257,6 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   return Promise.all(promises);
 });
 
-// ---------- 导入导出 ----------
 ipcMain.handle('export-funds', async () => {
   const funds = store.get('funds', []);
   if (!funds.length) {
@@ -335,7 +322,6 @@ ipcMain.handle('import-funds', async () => {
   }
 });
 
-// ---------- 应用启动 ----------
 app.whenReady().then(() => {
   createWindow();
   applyMenuBarSetting();

@@ -218,6 +218,93 @@ async function fetchFromSina(code) {
   };
 }
 
+// ---------- 场内 ETF IOPV（基金份额参考净值） ----------
+// 腾讯行情字段（~ 分隔，0 起算）：61=产品类型(ETF)、30=时间、3=最新价、
+// 77=折溢价率(%)、78=单位净值(T-1，偶发缺失，用新浪净值接口兜底)、81=IOPV 实时参考净值（盘中每15秒更新）
+
+// ETF 代码判定：沪市 510-529/560-563/588，深市 159 开头
+function getETFMarketPrefix(code) {
+  if (!/^\d{6}$/.test(code)) return null;
+  if (/^(51[0-9]|52[0-9]|56[0-3]|588)/.test(code)) return 'sh';
+  if (/^159/.test(code)) return 'sz';
+  return null;
+}
+
+function formatQuoteTime(raw) {
+  // "20261102161449" -> "2026-11-02 16:14:49"
+  if (!/^\d{14}$/.test(raw || '')) return raw || '';
+  const s = raw;
+  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}`;
+}
+
+// ETF 昨日净值兜底：新浪基金净值接口（腾讯 idx78 偶发为空时使用）
+async function fetchETFNavFromSina(code) {
+  const url = `https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/CaihuiFundInfoService.getNav?symbol=${code}&datefrom=&dateto=&page=1`;
+  const response = await axios.get(url, {
+    timeout: 5000,
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn/' }
+  });
+  const rows = response.data?.result?.data?.data;
+  if (!Array.isArray(rows) || !rows.length) throw new Error('新浪净值数据缺失');
+  const nav = parseFloat(rows[0].jjjz);
+  if (!isFinite(nav) || nav <= 0) throw new Error('新浪净值无效');
+  return { nav, navDate: (rows[0].fbrq || '').slice(0, 10) };
+}
+
+// 4. 腾讯行情 IOPV（ETF 专用，按交易所规则由成分股实时价×PCF 清单计算）
+async function fetchIOPVFromTencent(code) {
+  const prefix = getETFMarketPrefix(code);
+  const markets = prefix ? [prefix] : ['sh', 'sz'];
+  let lastError = null;
+  for (const mkt of markets) {
+    try {
+      const url = `https://qt.gtimg.cn/q=${mkt}${code}`;
+      const response = await axios.get(url, {
+        timeout: 5000,
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        responseType: 'arraybuffer'
+      });
+      const text = iconv.decode(response.data, 'gbk');
+      const match = text.match(/v_[a-z]{2}\d+="([^"]*)"/);
+      if (!match) throw new Error('腾讯行情解析失败');
+      const f = match[1].split('~');
+      if (f.length < 82 || f[61] !== 'ETF') throw new Error('非场内 ETF 或字段缺失');
+      const iopv = parseFloat(f[81]);
+      let nav = parseFloat(f[78]);
+      const price = parseFloat(f[3]);
+      if (!isFinite(iopv) || iopv <= 0) throw new Error('IOPV 数据无效');
+      let navFallback = null;
+      if (!isFinite(nav) || nav <= 0) {
+        try {
+          navFallback = await fetchETFNavFromSina(code);
+          nav = navFallback.nav;
+        } catch (e) { nav = null; }
+      }
+      const gszzl = isFinite(nav) && nav > 0 ? (iopv - nav) / nav * 100 : null;
+      const premium = isFinite(iopv) && iopv > 0 && isFinite(price) && price > 0
+        ? (price - iopv) / iopv * 100
+        : null;
+      return {
+        code: code,
+        name: f[1],
+        nav: isFinite(nav) && nav > 0 ? nav : iopv,
+        gsz: iopv,
+        gszzl: gszzl,
+        gztime: formatQuoteTime(f[30]),
+        iopv: iopv,
+        etfPrice: isFinite(price) ? price : null,
+        premium: premium,
+        navSource: navFallback ? '新浪净值(' + navFallback.navDate + ')' : null,
+        isETF: true,
+        source: '腾讯IOPV'
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('IOPV 获取失败');
+}
+
 const SOURCES = [
   { name: 'tiantian', fetch: fetchFromTiantian },
   { name: 'tencent', fetch: fetchFromTencent },
@@ -225,8 +312,12 @@ const SOURCES = [
 ];
 
 async function fetchFundValue(code) {
+  // 场内 ETF 优先走腾讯行情 IOPV（按 IOPV 规则实时计算），失败再降级场外估值源
+  const sources = getETFMarketPrefix(code)
+    ? [{ name: 'etf-iopv', fetch: fetchIOPVFromTencent }, ...SOURCES]
+    : SOURCES;
   let lastError = null;
-  for (const source of SOURCES) {
+  for (const source of sources) {
     try {
       const result = await source.fetch(code);
       if (!result.gsz || isNaN(result.gsz)) {

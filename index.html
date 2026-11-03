@@ -261,6 +261,7 @@
           <th data-sort="gsz" style="width:95px; cursor:pointer;">实时估值</th>
           <th data-sort="change" style="width:80px; cursor:pointer;">涨跌额</th>
           <th data-sort="gszzl" style="width:90px; cursor:pointer;">涨跌幅</th>
+          <th data-sort="iopv" style="width:120px; cursor:pointer;">IOPV估值(折溢价)</th>
           <th data-sort="cost" style="width:80px; cursor:pointer;">成本</th>
           <th data-sort="shares" style="width:80px; cursor:pointer;">份额</th>
           <th data-sort="profit" style="width:95px; cursor:pointer;">盈亏</th>
@@ -282,7 +283,7 @@
     <select id="batchMoveTarget" style="padding:4px 8px; border-radius:6px; border:1px solid #ccc; background:#f5f5f5;"></select>
   </div>
 
-  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾） | 盘中自动刷新，涨红跌绿</div>
+  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾）| 场内 ETF 按腾讯行情 IOPV 估值（成分股实时价 × 申赎清单，每15秒更新） | 盘中自动刷新，涨红跌绿</div>
 
   <!-- 设置模态框 -->
   <div id="settingsModal" class="modal-overlay">
@@ -508,7 +509,7 @@
       // 排序
       filtered.sort((a, b) => {
         let va = a[sortKey], vb = b[sortKey];
-        if (sortKey === 'gsz' || sortKey === 'gszzl' || sortKey === 'cost' || sortKey === 'shares' || sortKey === 'profit' || sortKey === 'profitRate' || sortKey === 'change') {
+        if (sortKey === 'gsz' || sortKey === 'gszzl' || sortKey === 'cost' || sortKey === 'shares' || sortKey === 'profit' || sortKey === 'profitRate' || sortKey === 'change' || sortKey === 'iopv') {
           const dataA = fundData[a.code] || {};
           const dataB = fundData[b.code] || {};
           if (sortKey === 'change') {
@@ -529,7 +530,7 @@
       });
 
       if (!filtered.length) {
-        tableBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; opacity:0.5;">暂无基金</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding:30px; opacity:0.5;">暂无基金</td></tr>';
         updateSelectedCount();
         return;
       }
@@ -538,7 +539,7 @@
       filtered.forEach((fund, idx) => {
         const data = fundData[fund.code] || {};
         const gsz = data.gsz !== undefined ? data.gsz : '--';
-        const gszzl = data.gszzl !== undefined ? data.gszzl : '--';
+        const gszzl = (data.gszzl !== undefined && data.gszzl !== null && isFinite(data.gszzl)) ? data.gszzl : '--';
         const nav = data.nav !== undefined ? data.nav : null;
         const name = data.name || fund.name || fund.code;
         const cost = fund.costPrice;
@@ -568,6 +569,17 @@
         }
         let gszClass = gszzlClass;
 
+        // IOPV 估值列：仅场内 ETF 显示（腾讯行情，成分股实时价 × PCF 清单，每15秒更新）
+        let iopvText = '--', iopvClass = '';
+        if (data.isETF && data.iopv !== undefined && data.iopv !== null) {
+          const premiumNum = data.premium !== undefined && data.premium !== null && isFinite(data.premium) ? data.premium : null;
+          iopvText = Number(data.iopv).toFixed(4);
+          if (premiumNum !== null) {
+            iopvText += ` (${premiumNum >= 0 ? '+' : ''}${premiumNum.toFixed(2)}%)`;
+            iopvClass = premiumNum >= 0 ? 'positive' : 'negative';
+          }
+        }
+
         html += `
           <tr class="fund-row" data-index="${idx}">
             <td class="checkbox-col"><input type="checkbox" class="fund-checkbox" data-code="${fund.code}" ${deleteModeActive ? '' : 'style="display:none"' }></td>
@@ -581,6 +593,7 @@
             <td><strong class="${gszClass}">${gsz}</strong></td>
             <td class="${changeClass}">${change}</td>
             <td class="${gszzlClass}">${gszzl !== '--' ? (gszzl >= 0 ? '+' : '') + gszzl + '%' : '--'}</td>
+            <td class="${iopvClass}">${iopvText}</td>
             <td>${cost}</td>
             <td>${shares}</td>
             <td class="profit ${profitClass}">${profit}</td>

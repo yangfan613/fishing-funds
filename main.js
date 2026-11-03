@@ -191,6 +191,8 @@ async function fetchFromTencent(code) {
 }
 
 // 3. 新浪基金（CSV，GBK）
+// 2026 起新版格式：名称,最新单位净值,累计净值,上期单位净值,净值日期,规模(亿)
+// （旧版"估算净值,估算涨跌%,估算时间"格式已随盘中估值下架而失效）
 async function fetchFromSina(code) {
   const url = `https://hq.sinajs.cn/list=f_${code}`;
   const response = await axios.get(url, {
@@ -204,16 +206,32 @@ async function fetchFromSina(code) {
   const parts = match[1].split(',');
   if (parts.length < 4) throw new Error('新浪数据字段不足');
   const name = parts[0];
-  const gsz = parseFloat(parts[1]);
-  const gszzl = parseFloat(parts[2]);
-  const gztime = parts[3] || new Date().toLocaleString();
+  const latest = parseFloat(parts[1]);
+  if (!isFinite(latest) || latest <= 0) throw new Error('新浪数据无效');
+  const isNavFormat = /^\d{4}-\d{2}-\d{2}/.test(parts[4] || '');
+  if (isNavFormat) {
+    // 新版：只有官方净值（T+1），无盘中估值
+    const prevNav = parseFloat(parts[3]);
+    const gszzl = isFinite(prevNav) && prevNav > 0 ? (latest - prevNav) / prevNav * 100 : null;
+    return {
+      code: code,
+      name: name,
+      nav: latest,
+      gsz: latest,
+      gszzl: gszzl,
+      gztime: parts[4],
+      navOnly: true,
+      source: '新浪净值'
+    };
+  }
+  // 旧版兼容（若恢复）：估算净值,估算涨跌%,估算时间
   return {
     code: code,
     name: name,
-    nav: gsz, // 新浪无昨日净值，用估算代替（仅用于显示）
-    gsz: gsz,
-    gszzl: gszzl,
-    gztime: gztime,
+    nav: latest,
+    gsz: latest,
+    gszzl: isFinite(parseFloat(parts[2])) ? parseFloat(parts[2]) : null,
+    gztime: parts[3] || new Date().toLocaleString(),
     source: '新浪基金'
   };
 }
@@ -311,6 +329,101 @@ const SOURCES = [
   { name: 'sina', fetch: fetchFromSina }
 ];
 
+// ---------- 场外基金盘中估算（季报前十大重仓 × 实时涨跌） ----------
+// 原理：估算涨跌 = Σ(占净值比% × 成分股实时涨跌%) / 100，未覆盖部分（其余持仓+现金）按持平处理
+// 局限：季报持仓滞后最多一个季度、前十大覆盖率通常仅 30%-60%，估算仅供参考
+const HOLDINGS_TTL = 24 * 60 * 60 * 1000;
+
+// 东财 F10 前十大重仓（akshare 同源接口），带 24h 本地缓存
+async function fetchHoldings(code) {
+  const cacheKey = 'holdings.' + code;
+  const cached = store.get(cacheKey, null);
+  if (cached && cached.stocks && cached.stocks.length && Date.now() - cached.fetchedAt < HOLDINGS_TTL) {
+    return cached;
+  }
+  const year = new Date().getFullYear();
+  const url = `https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=jjcc&code=${code}&topline=10&year=${year}&month=3,6,9,12`;
+  const response = await axios.get(url, {
+    timeout: 8000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'Referer': `https://fundf10.eastmoney.com/ccmx_${code}.html`
+    },
+    responseType: 'text'
+  });
+  const raw = String(response.data);
+  const contentMatch = raw.match(/content:"([\s\S]*?)",\s*arryear/);
+  if (!contentMatch) throw new Error('东财持仓数据格式异常');
+  const html = contentMatch[1].replace(/\\"/g, '"').replace(/\\\//g, '/');
+  const table = (html.match(/<table[\s\S]*?<\/table>/g) || [])[0];
+  if (!table) throw new Error('东财持仓数据缺失');
+  const stocks = [];
+  const rows = table.match(/<tr[\s\S]*?<\/tr>/g) || [];
+  for (const row of rows) {
+    const link = row.match(/quote\.eastmoney\.com\/([a-z]{2})(\d{4,6})\.html"[^>]*>([^<]+)</i);
+    const weight = row.match(/([\d.]+)\s*%/);
+    if (link && weight) {
+      stocks.push({
+        market: link[1].toLowerCase(),
+        code: link[2],
+        name: link[3],
+        weight: parseFloat(weight[1])
+      });
+    }
+    if (stocks.length >= 10) break;
+  }
+  if (!stocks.length) throw new Error('未解析到前十大重仓');
+  const quarterMatch = html.match(/(\d{4})年(第?\s*[一二三四1-4])季度/);
+  const data = {
+    stocks: stocks,
+    quarter: quarterMatch ? quarterMatch[0] : '',
+    fetchedAt: Date.now()
+  };
+  store.set(cacheKey, data);
+  return data;
+}
+
+// 批量行情（腾讯，单次最多 ~50 只；返回 { 'sh600519': 涨跌% }）
+async function fetchBatchQuotes(symbols) {
+  const url = `https://qt.gtimg.cn/q=${symbols.join(',')}`;
+  const response = await axios.get(url, {
+    timeout: 5000,
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    responseType: 'arraybuffer'
+  });
+  const text = iconv.decode(response.data, 'gbk');
+  const quotes = {};
+  const items = text.split(';');
+  for (const item of items) {
+    const m = item.match(/v_([a-z]{2}\d+)\s*=\s*"([^"]*)"/);
+    if (!m) continue;
+    const f = m[2].split('~');
+    const pct = parseFloat(f[32]);
+    if (isFinite(pct)) quotes[m[1].toLowerCase()] = pct;
+  }
+  return quotes;
+}
+
+async function computeEstimate(code, nav) {
+  const { stocks, quarter } = await fetchHoldings(code);
+  const quotes = await fetchBatchQuotes(stocks.map(s => s.market + s.code));
+  let contrib = 0;   // Σ 占净值比 × 涨跌%
+  let coverage = 0;  // 实际取到行情的权重覆盖率和
+  for (const s of stocks) {
+    const pct = quotes[(s.market + s.code).toLowerCase()];
+    if (pct !== undefined) {
+      contrib += s.weight * pct;
+      coverage += s.weight;
+    }
+  }
+  if (coverage === 0) throw new Error('成分股行情全部缺失');
+  return {
+    estChange: contrib / 100,
+    coverage: coverage,
+    quarter: quarter
+  };
+}
+
 async function fetchFundValue(code) {
   // 场内 ETF 优先走腾讯行情 IOPV（按 IOPV 规则实时计算），失败再降级场外估值源
   const sources = getETFMarketPrefix(code)
@@ -320,8 +433,9 @@ async function fetchFundValue(code) {
   for (const source of sources) {
     try {
       const result = await source.fetch(code);
-      if (!result.gsz || isNaN(result.gsz)) {
-        throw new Error(`数据无效: gsz=${result.gsz}`);
+      const hasValue = (result.gsz && !isNaN(result.gsz)) || (result.nav && !isNaN(result.nav));
+      if (!hasValue) {
+        throw new Error(`数据无效: gsz=${result.gsz}, nav=${result.nav}`);
       }
       console.log(`✅ 基金 ${code} 使用源: ${result.source}`);
       return result;
@@ -347,6 +461,20 @@ ipcMain.handle('fetch-multiple-funds', async (event, fundList) => {
   const promises = fundList.map(async (item) => {
     try {
       const val = await fetchFundValue(item.code);
+      // 场外基金（仅有官方净值时）按前十大重仓估算盘中估值
+      if (val.navOnly && isFinite(val.nav) && val.nav > 0) {
+        try {
+          const est = await computeEstimate(item.code, val.nav);
+          if (isFinite(est.estChange)) {
+            val.gsz = +(val.nav * (1 + est.estChange / 100)).toFixed(4);
+            val.gszzl = +est.estChange.toFixed(2);
+            val.estimate = { coverage: +est.coverage.toFixed(1), quarter: est.quarter };
+            val.source = '重仓估算';
+          }
+        } catch (e) {
+          console.warn(`⚠️ 基金 ${item.code} 重仓估算失败:`, e.message);
+        }
+      }
       const currentFunds = store.get('funds', []);
       const idx = currentFunds.findIndex(f => f.code === item.code);
       if (idx !== -1 && currentFunds[idx].name !== val.name) {

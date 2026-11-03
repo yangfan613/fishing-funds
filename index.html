@@ -283,7 +283,7 @@
     <select id="batchMoveTarget" style="padding:4px 8px; border-radius:6px; border:1px solid #ccc; background:#f5f5f5;"></select>
   </div>
 
-  <div class="hint">📊 数据来源：天天基金 / 腾讯证券 / 新浪基金（自动容灾）| 场内 ETF 按腾讯行情 IOPV 估值（成分股实时价 × 申赎清单，每15秒更新） | 盘中自动刷新，涨红跌绿</div>
+  <div class="hint">📊 场内 ETF：腾讯行情 IOPV 实时估值（每15秒更新）| 场外基金：按季报前十大重仓×实时涨跌估算（悬停「估」查看覆盖率，持仓滞后仅供参考，勿对外传播）| 涨红跌绿</div>
 
   <!-- 设置模态框 -->
   <div id="settingsModal" class="modal-overlay">
@@ -563,6 +563,16 @@
           profitClass = p >= 0 ? 'positive' : 'negative';
         }
         const sourceTag = data.source ? ` (${data.source})` : '';
+        // 估值来源标注：重仓估算 > 官方净值
+        let navTag = '';
+        if (gsz !== '--') {
+          if (data.estimate) {
+            const tip = `按${data.estimate.quarter || '最新'}季报前十大重仓×实时涨跌估算，权重覆盖 ${data.estimate.coverage}%，持仓滞后仅供参考`;
+            navTag = ` <span class="small-note" title="${tip}">估</span>`;
+          } else if (data.navOnly) {
+            navTag = ' <span class="small-note" title="场外基金盘中估值接口已下架，此为最新官方净值（T+1）">净值</span>';
+          }
+        }
         let gszzlClass = '';
         if (gszzl !== '--') {
           gszzlClass = gszzl >= 0 ? 'positive' : 'negative';
@@ -590,10 +600,10 @@
                 ${groups.map(g => `<option value="${g}" ${g === fund.group ? 'selected' : ''}>${g}</option>`).join('')}
               </select>
             </td>
-            <td><strong class="${gszClass}">${gsz}</strong></td>
+            <td><strong class="${gszClass}">${gsz}${navTag}</strong></td>
             <td class="${changeClass}">${change}</td>
             <td class="${gszzlClass}">${gszzl !== '--' ? (gszzl >= 0 ? '+' : '') + gszzl + '%' : '--'}</td>
-            <td class="${iopvClass}">${iopvText}</td>
+            <td class="${iopvClass}" title="IOPV 仅场内 ETF 提供（交易所行情每 15 秒发布参考净值）；场外基金无 IOPV，此列显示 --">${iopvText}</td>
             <td>${cost}</td>
             <td>${shares}</td>
             <td class="profit ${profitClass}">${profit}</td>
